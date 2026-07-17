@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/database/daos/templates_dao.dart';
 import '../../templates/providers/templates_providers.dart';
 
 class TemplatesScreen extends ConsumerWidget {
@@ -44,7 +45,7 @@ class TemplatesScreen extends ConsumerWidget {
 }
 
 class _TemplateTile extends StatelessWidget {
-  final dynamic template;
+  final Template template;
   final WidgetRef ref;
   const _TemplateTile({required this.template, required this.ref});
 
