@@ -5,8 +5,6 @@ import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/daos/contacts_dao.dart';
-import '../../../core/database/tables/contact_groups_table.dart';
-import '../../../core/database/tables/contacts_table.dart';
 
 class ContactRepository {
   final ContactsDao _dao;
