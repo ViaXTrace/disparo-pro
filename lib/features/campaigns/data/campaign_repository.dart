@@ -3,8 +3,6 @@ import 'package:workmanager/workmanager.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/daos/campaigns_dao.dart';
-import '../../../core/database/tables/campaigns_table.dart';
-import '../../../core/database/tables/message_logs_table.dart';
 import '../../../core/background/dispatch_worker.dart';
 
 class CampaignRepository {
