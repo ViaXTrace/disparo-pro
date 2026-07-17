@@ -1,0 +1,121 @@
+name: Build Android
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build APK & AAB
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.x'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run tests
+        run: flutter test
+
+      # ── Debug build (main, develop, PRs and workflow_dispatch) ─────────────
+      - name: Build APK (debug)
+        if: >
+          github.ref == 'refs/heads/main' ||
+          github.ref == 'refs/heads/develop' ||
+          github.event_name == 'pull_request' ||
+          github.event_name == 'workflow_dispatch'
+        run: flutter build apk --debug
+
+      - name: Upload debug APK artifact
+        if: >
+          github.ref == 'refs/heads/main' ||
+          github.ref == 'refs/heads/develop' ||
+          github.event_name == 'pull_request' ||
+          github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-debug
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+
+      - name: Get short SHA
+        if: >
+          github.ref == 'refs/heads/main' ||
+          github.event_name == 'workflow_dispatch'
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create Debug Release
+        if: >
+          github.ref == 'refs/heads/main' ||
+          github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: debug-${{ steps.vars.outputs.sha_short }}
+          name: "Debug Build ${{ steps.vars.outputs.sha_short }}"
+          body: |
+            🐛 **APK de Debug** — build automático do commit `${{ steps.vars.outputs.sha_short }}`
+
+            Este é um build de debug não assinado, destinado a testes internos.
+            Instale diretamente em dispositivos com modo de desenvolvedor ativado.
+          files: build/app/outputs/flutter-apk/app-debug.apk
+          prerelease: true
+          draft: false
+
+      # ── Release build (tags v*.*.*) ───────────────────────────────────────
+      - name: Decode keystore
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+
+      - name: Build APK (release)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          flutter build apk --release \
+            --dart-define=KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} \
+            --dart-define=KEY_ALIAS=${{ secrets.KEY_ALIAS }} \
+            --dart-define=KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+
+      - name: Build AAB (release)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          flutter build appbundle --release
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+          generate_release_notes: true
+          draft: false
+          prerelease: false

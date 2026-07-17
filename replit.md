@@ -1,36 +1,56 @@
-# [Project name]
+# Disparo Pro (DyanX)
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Plataforma nativa Flutter de disparo multi-canal — SMS, RCS e WhatsApp — para Android e iOS. 100% gratuito, sem assinatura. O usuário paga apenas o custo por mensagem do provedor escolhido.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `flutter pub get` — instala dependências Dart/Flutter
+- `dart run build_runner build --delete-conflicting-outputs` — gera código (Drift, Freezed, Riverpod)
+- `flutter run` — roda no dispositivo/emulador conectado
+- `flutter build apk --release` — gera APK de produção
+- `flutter build appbundle --release` — gera AAB para Google Play
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Flutter ≥ 3.22 / Dart ≥ 3.3
+- State management: Riverpod 2 + riverpod_generator
+- Navegação: go_router
+- Banco local: Drift (SQLite) + drift_dev
+- HTTP: Dio
+- Background: WorkManager
+- Notificações: flutter_local_notifications
+- Charts: fl_chart
+- Modelos: Freezed + json_serializable
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/core/` — infraestrutura: banco, gateways de provedor, router, tema, background worker
+- `lib/features/` — funcionalidades: dashboard, contacts, campaigns, templates, providers, reports, settings
+- `android/` — código nativo Android (NativeSmsPlugin.kt para SMS nativo)
+- `assets/` — imagens, ícones, animações Lottie
+- `.github/workflows/` — CI/CD: build automático de APK/AAB no push com tag `v*`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Feature-first layout sob `lib/features/`, cada feature com `data/`, `presentation/` e `providers/`
+- Abstração de gateway (`message_gateway.dart`) permite trocar/adicionar provedores sem mudar lógica de campanha
+- Drift (SQLite local) para dados offline-first: campanhas, contatos, logs, templates, provedores
+- WorkManager para disparo em background mesmo com app fechado
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+App mobile de disparo de mensagens em massa. Permite criar campanhas com templates dinâmicos, importar contatos via CSV/VCF, configurar múltiplos provedores (Zenvia, Infobip, Twilio, Sinch, TotalVoice, Webhook custom), agendar disparos e acompanhar relatórios de entrega.
+
+## Provedores suportados
+
+| Provedor | SMS | RCS | WhatsApp |
+|---|:---:|:---:|:---:|
+| Zenvia | ✅ | ✅ | ✅ |
+| Infobip | ✅ | ✅ | ✅ |
+| Twilio | ✅ | — | ✅ |
+| Sinch | ✅ | ✅ | — |
+| TotalVoice | ✅ | — | — |
+| Webhook customizado | ✅ | ✅ | ✅ |
 
 ## User preferences
 
@@ -38,8 +58,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Após qualquer mudança em arquivos `*.dart` com anotações geradas (Drift, Freezed, Riverpod), rodar `dart run build_runner build --delete-conflicting-outputs` antes de compilar.
+- O plugin `NativeSmsPlugin.kt` permite disparo via SMS nativo do Android (sem provedor externo).
 
 ## Pointers
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Repositório original: https://github.com/ViaXTrace/disparo-pro
+- See the `pnpm-workspace` skill for workspace structure (monorepo Node.js coexistente)
