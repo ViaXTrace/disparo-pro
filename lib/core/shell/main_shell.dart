@@ -15,12 +15,18 @@ class MainShell extends StatelessWidget {
     final index = _selectedIndex(context);
     final bottom = MediaQuery.of(context).padding.bottom;
 
+    // Only inject nav-bar padding when the keyboard is NOT covering the screen.
+    // If we inject 80 px of fake bottom-padding while the keyboard is open,
+    // the inner Scaffold's resizeToAvoidBottomInset calculation double-counts
+    // the space and renders a black block below the content.
+    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return Scaffold(
       // Give the body bottom padding so content never hides behind the nav
       body: MediaQuery(
         data: MediaQuery.of(context).copyWith(
           padding: MediaQuery.of(context).padding.copyWith(
-            bottom: 80 + bottom,
+            bottom: keyboardOpen ? bottom : 80 + bottom,
           ),
         ),
         child: child,
