@@ -49,7 +49,7 @@ class CustomWebhookGateway implements MessageGateway {
   }) async {
     try {
       final payload = _buildPayload(to, body, channel);
-      Response resp;
+      Response<dynamic> resp;
       if (_method == 'GET') {
         resp = await _dio.get(_url, queryParameters: {'to': to, 'body': body});
       } else {
