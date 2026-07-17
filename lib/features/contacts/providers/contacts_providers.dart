@@ -10,7 +10,7 @@ final contactRepositoryProvider = Provider<ContactRepository>((ref) {
 
 final contactSearchProvider = StateProvider<String>((ref) => '');
 
-final contactsStreamProvider = StreamProvider((ref) {
+final contactsStreamProvider = StreamProvider<List<Contact>>((ref) {
   final repo = ref.watch(contactRepositoryProvider);
   final search = ref.watch(contactSearchProvider);
   return repo.watchAll(search: search.isEmpty ? null : search);
@@ -21,7 +21,7 @@ final contactCountProvider = FutureProvider<int>((ref) {
   return repo.count();
 });
 
-final contactGroupsStreamProvider = StreamProvider((ref) {
+final contactGroupsStreamProvider = StreamProvider<List<ContactGroup>>((ref) {
   final repo = ref.watch(contactRepositoryProvider);
   return repo.watchGroups();
 });
