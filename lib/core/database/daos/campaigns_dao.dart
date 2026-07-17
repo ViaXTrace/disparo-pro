@@ -33,8 +33,12 @@ class CampaignsDao extends DatabaseAccessor<AppDatabase> with _$CampaignsDaoMixi
   Future<int> insert(CampaignsTableCompanion entry) =>
       into(campaignsTable).insert(entry);
 
-  Future<bool> update(CampaignsTableCompanion entry) =>
-      updateRow(campaignsTable, entry);
+  Future<bool> updateCampaign(CampaignsTableCompanion entry) async {
+    final count = await (update(campaignsTable)
+          ..where((t) => t.id.equals(entry.id.value)))
+        .write(entry);
+    return count > 0;
+  }
 
   Future<void> updateStatus(int id, String status) =>
       (update(campaignsTable)..where((t) => t.id.equals(id)))
@@ -45,7 +49,7 @@ class CampaignsDao extends DatabaseAccessor<AppDatabase> with _$CampaignsDaoMixi
         CampaignsTableCompanion(sent: Value(sent), failed: Value(failed)),
       );
 
-  Future<int> delete(int id) async {
+  Future<int> deleteCampaign(int id) async {
     await (deleteFrom(messageLogsTable)..where((t) => t.campaignId.equals(id))).go();
     return (deleteFrom(campaignsTable)..where((t) => t.id.equals(id))).go();
   }
