@@ -41,7 +41,7 @@ class ProviderRepository {
     List<MessageChannel>? channels,
     bool? isDefault,
     bool? isActive,
-  }) => _dao.update(ProvidersTableCompanion(
+  }) => _dao.updateProvider(ProvidersTableCompanion(
         id: Value(provider.id),
         name: name != null ? Value(name) : const Value.absent(),
         credentials: credentials != null ? Value(jsonEncode(credentials)) : const Value.absent(),
@@ -50,10 +50,9 @@ class ProviderRepository {
         isActive: isActive != null ? Value(isActive) : const Value.absent(),
       ));
 
-  Future<int> delete(int id) => _dao.delete(id);
+  Future<int> delete(int id) => _dao.deleteProvider(id);
   Future<void> setDefault(int id) => _dao.setDefault(id);
 
-  /// Validates credentials against the provider's API.
   Future<bool> validate(String type, Map<String, dynamic> credentials) async {
     final gw = GatewayRegistry.build(type);
     return gw.validateCredentials(credentials);
