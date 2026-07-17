@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/database/daos/templates_dao.dart';
+import '../../../core/database/app_database.dart';
 import '../../templates/providers/templates_providers.dart';
 
 class TemplatesScreen extends ConsumerWidget {
