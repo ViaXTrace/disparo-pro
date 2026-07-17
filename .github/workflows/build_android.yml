@@ -42,18 +42,52 @@ jobs:
       - name: Run tests
         run: flutter test
 
-      # ── Debug build (PRs and pushes to develop) ──────────────────────────
+      # ── Debug build (main, develop, PRs and workflow_dispatch) ─────────────
       - name: Build APK (debug)
-        if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
+        if: >
+          github.ref == 'refs/heads/main' ||
+          github.ref == 'refs/heads/develop' ||
+          github.event_name == 'pull_request' ||
+          github.event_name == 'workflow_dispatch'
         run: flutter build apk --debug
 
-      - name: Upload debug APK
-        if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
+      - name: Upload debug APK artifact
+        if: >
+          github.ref == 'refs/heads/main' ||
+          github.ref == 'refs/heads/develop' ||
+          github.event_name == 'pull_request' ||
+          github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: apk-debug
           path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 14
+
+      - name: Get short SHA
+        if: >
+          github.ref == 'refs/heads/main' ||
+          github.event_name == 'workflow_dispatch'
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create Debug Release
+        if: >
+          github.ref == 'refs/heads/main' ||
+          github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: debug-${{ steps.vars.outputs.sha_short }}
+          name: "Debug Build ${{ steps.vars.outputs.sha_short }}"
+          body: |
+            🐛 **APK de Debug** — build automático do commit `${{ steps.vars.outputs.sha_short }}`
+
+            Este é um build de debug não assinado, destinado a testes internos.
+            Instale diretamente em dispositivos com modo de desenvolvedor ativado.
+          files: build/app/outputs/flutter-apk/app-debug.apk
+          prerelease: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ── Release build (tags v*.*.*) ───────────────────────────────────────
       - name: Decode keystore
