@@ -37,7 +37,7 @@ dependencies:
   file_picker: ^8.0.3
 
   # Background tasks
-  workmanager: ^0.5.15
+  workmanager: ^0.7.0
 
   # Notifications
   flutter_local_notifications: ^17.1.2
