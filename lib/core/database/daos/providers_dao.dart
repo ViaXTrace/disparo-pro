@@ -22,13 +22,16 @@ class ProvidersDao extends DatabaseAccessor<AppDatabase> with _$ProvidersDaoMixi
       (select(providersTable)..where((t) => t.isDefault.equals(true))).getSingleOrNull();
 
   Future<int> insert(ProvidersTableCompanion entry) async {
-    if (entry.isDefault.value) await _clearDefault();
+    if (entry.isDefault == const Value(true)) await _clearDefault();
     return into(providersTable).insert(entry);
   }
 
-  Future<bool> update(ProvidersTableCompanion entry) async {
-    if (entry.isDefault.value) await _clearDefault();
-    return updateRow(providersTable, entry);
+  Future<bool> updateProvider(ProvidersTableCompanion entry) async {
+    if (entry.isDefault.present && entry.isDefault.value) await _clearDefault();
+    final count = await (update(providersTable)
+          ..where((t) => t.id.equals(entry.id.value)))
+        .write(entry);
+    return count > 0;
   }
 
   Future<void> setDefault(int id) async {
@@ -37,8 +40,8 @@ class ProvidersDao extends DatabaseAccessor<AppDatabase> with _$ProvidersDaoMixi
         .write(const ProvidersTableCompanion(isDefault: Value(true)));
   }
 
-  Future<int> delete(int id) =>
-      (deleteFrom(providersTable)..where((t) => t.id.equals(id))).go();
+  Future<int> deleteProvider(int id) =>
+      (delete(providersTable)..where((t) => t.id.equals(id))).go();
 
   Future<void> _clearDefault() =>
       (update(providersTable)..where((t) => t.isDefault.equals(true)))
