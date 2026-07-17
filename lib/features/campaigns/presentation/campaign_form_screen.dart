@@ -94,7 +94,7 @@ class _CampaignFormScreenState extends ConsumerState<CampaignFormScreen> {
               segments: const [
                 ButtonSegment(value: 'sms', label: Text('SMS'), icon: Icon(Icons.sms, size: 16)),
                 ButtonSegment(value: 'rcs', label: Text('RCS'), icon: Icon(Icons.chat_bubble_outline, size: 16)),
-                ButtonSegment(value: 'whatsapp', label: Text('WhatsApp'), icon: Icon(Icons.whatsapp, size: 16)),
+                ButtonSegment(value: 'whatsapp', label: Text('WhatsApp'), icon: Icon(Icons.chat, size: 16)),
               ],
               selected: {_channel},
               onSelectionChanged: (v) => setState(() { _channel = v.first; _templateId = null; }),
