@@ -4,7 +4,6 @@ import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/daos/providers_dao.dart';
-import '../../../core/database/tables/providers_table.dart';
 import '../../../core/gateway/gateway_registry.dart';
 import '../../../core/gateway/message_gateway.dart';
 
