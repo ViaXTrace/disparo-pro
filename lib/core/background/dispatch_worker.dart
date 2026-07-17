@@ -9,8 +9,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../database/app_database.dart';
-import '../database/tables/campaigns_table.dart';
-import '../database/tables/message_logs_table.dart';
 import '../gateway/gateway_registry.dart';
 import '../gateway/message_gateway.dart';
 
@@ -98,7 +96,7 @@ void callbackDispatcher() {
             contactId: 0,
             phone: phone,
             channel: campaign.channel,
-            status: logStatus,
+            status: Value(logStatus),
             externalId: Value(result.externalId),
             errorMessage: Value(result.errorMessage),
             providerResponse: Value(rawJson),
