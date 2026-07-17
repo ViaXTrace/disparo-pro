@@ -8,13 +8,6 @@ import 'core/background/dispatch_worker.dart';
 import 'core/database/app_database.dart';
 import 'core/notifications/notification_service.dart';
 
-@pragma('vm:entry-point')
-void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
-    return DispatchWorker.run(task, inputData);
-  });
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -24,13 +17,13 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // Initialize background worker
+  // Initialize background worker — callbackDispatcher is in dispatch_worker.dart
   await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
 
   // Initialize notifications
   await NotificationService.instance.initialize();
 
-  // Initialize database
+  // Initialize database and inject via ProviderScope override
   final db = AppDatabase();
 
   runApp(

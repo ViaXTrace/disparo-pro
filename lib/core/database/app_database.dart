@@ -5,8 +5,11 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'daos/campaigns_dao.dart';
+import 'daos/contacts_dao.dart';
+import 'daos/providers_dao.dart';
+import 'daos/templates_dao.dart';
 import 'tables/campaigns_table.dart';
 import 'tables/contact_groups_table.dart';
 import 'tables/contacts_table.dart';
@@ -16,17 +19,28 @@ import 'tables/templates_table.dart';
 
 part 'app_database.g.dart';
 
-@DriftDatabase(tables: [
-  ContactsTable,
-  ContactGroupsTable,
-  ContactGroupMembersTable,
-  CampaignsTable,
-  MessageLogsTable,
-  ProvidersTable,
-  TemplatesTable,
-])
+@DriftDatabase(
+  tables: [
+    ContactsTable,
+    ContactGroupsTable,
+    ContactGroupMembersTable,
+    CampaignsTable,
+    MessageLogsTable,
+    ProvidersTable,
+    TemplatesTable,
+  ],
+  daos: [
+    ContactsDao,
+    CampaignsDao,
+    ProvidersDao,
+    TemplatesDao,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
+
+  /// For WorkManager background isolate — pass executor directly.
+  AppDatabase.forBackground(super.executor);
 
   @override
   int get schemaVersion => 1;
@@ -34,9 +48,7 @@ class AppDatabase extends _$AppDatabase {
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
-        onUpgrade: (m, from, to) async {
-          // Future migrations go here
-        },
+        onUpgrade: (m, from, to) async {},
       );
 }
 

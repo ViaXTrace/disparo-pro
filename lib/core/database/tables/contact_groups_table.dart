@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+@DataClassName('ContactGroup')
 class ContactGroupsTable extends Table {
   @override
   String get tableName => 'contact_groups';
@@ -10,6 +11,7 @@ class ContactGroupsTable extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
+@DataClassName('ContactGroupMember')
 class ContactGroupMembersTable extends Table {
   @override
   String get tableName => 'contact_group_members';
@@ -19,7 +21,5 @@ class ContactGroupMembersTable extends Table {
   IntColumn get contactId => integer()();
 
   @override
-  List<Set<Column>> get uniqueKeys => [
-        {groupId, contactId}
-      ];
+  List<Set<Column>> get uniqueKeys => [{groupId, contactId}];
 }

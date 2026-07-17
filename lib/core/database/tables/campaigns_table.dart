@@ -1,5 +1,8 @@
 import 'package:drift/drift.dart';
 
+import 'providers_table.dart';
+
+@DataClassName('Campaign')
 class CampaignsTable extends Table {
   @override
   String get tableName => 'campaigns';
@@ -23,14 +26,6 @@ class CampaignsTable extends Table {
   IntColumn get failed => integer().withDefault(const Constant(0))();
   IntColumn get batchSize => integer().withDefault(const Constant(50))();
   IntColumn get delayBetweenBatchesMs =>
-      integer().withDefault(const Constant(1000))();
+      integer().withDefault(const Constant(500))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
-}
-
-// Referência forward declaration (workaround Drift)
-class ProvidersTable extends Table {
-  @override
-  String get tableName => 'providers';
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get name => text()();
 }
