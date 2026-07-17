@@ -10,8 +10,6 @@ part 'campaigns_dao.g.dart';
 class CampaignsDao extends DatabaseAccessor<AppDatabase> with _$CampaignsDaoMixin {
   CampaignsDao(super.db);
 
-  // ── Campaigns ────────────────────────────────────────────────────────────
-
   Stream<List<Campaign>> watchAll({String? statusFilter}) {
     final q = select(campaignsTable);
     if (statusFilter != null && statusFilter != 'all') {
@@ -50,11 +48,9 @@ class CampaignsDao extends DatabaseAccessor<AppDatabase> with _$CampaignsDaoMixi
       );
 
   Future<int> deleteCampaign(int id) async {
-    await (deleteFrom(messageLogsTable)..where((t) => t.campaignId.equals(id))).go();
-    return (deleteFrom(campaignsTable)..where((t) => t.id.equals(id))).go();
+    await (delete(messageLogsTable)..where((t) => t.campaignId.equals(id))).go();
+    return (delete(campaignsTable)..where((t) => t.id.equals(id))).go();
   }
-
-  // ── Message Logs ─────────────────────────────────────────────────────────
 
   Stream<List<MessageLog>> watchLogs(int campaignId) =>
       (select(messageLogsTable)
@@ -88,8 +84,6 @@ class CampaignsDao extends DatabaseAccessor<AppDatabase> with _$CampaignsDaoMixi
       'failed': logs.where((l) => l.status == 'failed').length,
     };
   }
-
-  // ── Dashboard stats ───────────────────────────────────────────────────────
 
   Future<Map<String, int>> getDashboardStats() async {
     final today = DateTime.now();
