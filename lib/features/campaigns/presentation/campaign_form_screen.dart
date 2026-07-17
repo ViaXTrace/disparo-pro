@@ -91,10 +91,13 @@ class _CampaignFormScreenState extends ConsumerState<CampaignFormScreen> {
             // Channel
             _label(context, 'Canal de envio'),
             SegmentedButton<String>(
+              style: SegmentedButton.styleFrom(
+                textStyle: const TextStyle(fontSize: 13),
+              ),
               segments: const [
-                ButtonSegment(value: 'sms', label: Text('SMS'), icon: Icon(Icons.sms, size: 16)),
-                ButtonSegment(value: 'rcs', label: Text('RCS'), icon: Icon(Icons.chat_bubble_outline, size: 16)),
-                ButtonSegment(value: 'whatsapp', label: Text('WhatsApp'), icon: Icon(Icons.chat, size: 16)),
+                ButtonSegment(value: 'sms',      label: Text('SMS')),
+                ButtonSegment(value: 'rcs',      label: Text('RCS')),
+                ButtonSegment(value: 'whatsapp', label: Text('WhatsApp')),
               ],
               selected: {_channel},
               onSelectionChanged: (v) => setState(() { _channel = v.first; _templateId = null; }),

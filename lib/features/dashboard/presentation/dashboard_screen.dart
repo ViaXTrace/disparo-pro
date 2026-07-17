@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../campaigns/providers/campaigns_providers.dart';
 import '../../contacts/providers/contacts_providers.dart';
+import '../../providers/providers/providers_providers.dart';
 import '../../../core/database/app_database.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -167,23 +168,14 @@ class _DashboardAppBar extends StatelessWidget {
       sliver: SliverToBoxAdapter(
         child: Row(
           children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(
-                'Bom dia, Rafael',
-                style: GoogleFonts.dmSans(
-                  fontSize: 13, color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
-                ),
+            Text(
+              'Disparo Pro',
+              style: GoogleFonts.dmSans(
+                fontSize: 24, fontWeight: FontWeight.w800,
+                color: isDark ? AppColors.textDark : AppColors.textLight,
+                letterSpacing: -0.6, height: 1.1,
               ),
-              const SizedBox(height: 2),
-              Text(
-                'Disparo Pro',
-                style: GoogleFonts.dmSans(
-                  fontSize: 24, fontWeight: FontWeight.w800,
-                  color: isDark ? AppColors.textDark : AppColors.textLight,
-                  letterSpacing: -0.6, height: 1.1,
-                ),
-              ),
-            ]),
+            ),
             const Spacer(),
             // Signal icon
             GestureDetector(
@@ -661,16 +653,46 @@ class _CampaignRow extends StatelessWidget {
 
 // ─── Provider card ────────────────────────────────────────────────────────────
 
-class _ProviderCard extends StatelessWidget {
+class _ProviderCard extends ConsumerWidget {
   final VoidCallback onTap;
   const _ProviderCard({required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = Theme.of(context).colorScheme.primary;
-    final green = isDark ? AppColors.greenDark : AppColors.greenLight;
-    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final accent  = Theme.of(context).colorScheme.primary;
+    final green   = isDark ? AppColors.greenDark  : AppColors.greenLight;
+    final amber   = isDark ? AppColors.amberDark  : AppColors.amberLight;
+    final border  = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final muted   = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+
+    final defaultProv = ref.watch(defaultProviderProvider);
+    final allProv     = ref.watch(providersStreamProvider);
+
+    // Resolve display values from real DB data using Dart 3 records
+    final (String name, String status, Color statusColor, IconData cardIcon) =
+        defaultProv.when(
+      data: (p) {
+        if (p != null) {
+          return (
+            p.name,
+            p.isActive ? 'Conectado' : 'Inativo',
+            p.isActive ? green : amber,
+            Icons.bolt_rounded as IconData,
+          );
+        }
+        final count = allProv.valueOrNull?.length ?? 0;
+        return (
+          count > 0 ? '$count provedor(es)' : 'Nenhum provedor',
+          count > 0 ? 'Sem padrão definido' : 'Configure um provedor',
+          count > 0 ? amber : muted,
+          count > 0 ? Icons.dns_rounded as IconData : Icons.warning_amber_rounded,
+        );
+      },
+      loading: () => ('—', 'Carregando…', muted, Icons.bolt_rounded as IconData),
+      error: (_, __) =>
+          ('Erro', 'Não foi possível carregar', muted, Icons.error_outline_rounded as IconData),
+    );
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -687,19 +709,29 @@ class _ProviderCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: accent.withOpacity(0.20)),
           ),
-          child: Icon(Icons.bolt_rounded, size: 20, color: accent),
+          child: Icon(cardIcon, size: 20, color: accent),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Zenvia', style: GoogleFonts.dmSans(
-            fontSize: 14, fontWeight: FontWeight.w700,
-            color: isDark ? AppColors.textDark : AppColors.textLight,
-          )),
-          const SizedBox(height: 1),
-          Text('Conectado', style: GoogleFonts.dmSans(
-            fontSize: 11, fontWeight: FontWeight.w500, color: green,
-          )),
-        ])),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              name,
+              style: GoogleFonts.dmSans(
+                fontSize: 14, fontWeight: FontWeight.w700,
+                color: isDark ? AppColors.textDark : AppColors.textLight,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 1),
+            Text(
+              status,
+              style: GoogleFonts.dmSans(
+                fontSize: 11, fontWeight: FontWeight.w500, color: statusColor,
+              ),
+            ),
+          ]),
+        ),
         OutlinedButton(
           onPressed: onTap,
           style: OutlinedButton.styleFrom(
