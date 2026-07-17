@@ -1,4 +1,5 @@
 import 'message_gateway.dart';
+import 'native_sms_gateway.dart';
 import 'zenvia_gateway.dart';
 import 'infobip_gateway.dart';
 import 'twilio_gateway.dart';
@@ -12,6 +13,7 @@ class GatewayRegistry {
   GatewayRegistry._();
 
   static final Map<String, MessageGateway Function()> _factories = {
+    'native_sms': () => NativeSmsGateway(),
     'zenvia': () => ZenviaGateway(),
     'infobip': () => InfobipGateway(),
     'twilio': () => TwilioGateway(),
@@ -21,6 +23,16 @@ class GatewayRegistry {
   };
 
   static final Map<String, ProviderMeta> metadata = {
+    'native_sms': ProviderMeta(
+      type: 'native_sms',
+      label: 'SMS Nativo (Gratuito)',
+      description:
+          'Envia SMS diretamente pelo chip SIM do dispositivo. Completamente '
+          'gratuito — usa o plano de dados/SMS do usuário. Não requer conta '
+          'em nenhum serviço externo.',
+      channels: [MessageChannel.sms],
+      credentialFields: const [],
+    ),
     'zenvia': ProviderMeta(
       type: 'zenvia',
       label: 'Zenvia',
@@ -66,34 +78,33 @@ class GatewayRegistry {
     ),
     'totalvoice': ProviderMeta(
       type: 'totalvoice',
-      label: 'TotalVoice / Zenvia Voice',
-      description: 'SMS nacional. Muito utilizado em automações brasileiras.',
+      label: 'TotalVoice',
+      description: 'Provedor brasileiro focado em SMS e voz.',
       channels: [MessageChannel.sms],
       credentialFields: [
         CredentialField(key: 'access_token', label: 'Access Token', secret: true),
+        CredentialField(key: 'from', label: 'Número Remetente'),
       ],
     ),
     'custom_webhook': ProviderMeta(
       type: 'custom_webhook',
-      label: 'Webhook Customizado',
-      description: 'Integre qualquer provedor via HTTP. Configure URL, headers e payload.',
+      label: 'Webhook Personalizado',
+      description: 'Integre qualquer API via template HTTP customizável.',
       channels: [MessageChannel.sms, MessageChannel.rcs, MessageChannel.whatsapp],
       credentialFields: [
-        CredentialField(key: 'url', label: 'URL do Endpoint'),
-        CredentialField(key: 'method', label: 'Método HTTP (POST ou GET)'),
-        CredentialField(key: 'headers', label: 'Headers (JSON)', hint: '{"Authorization":"Bearer xxx"}'),
-        CredentialField(key: 'payload_template', label: 'Template do Payload (JSON)', hint: '{"to":"{{to}}","body":"{{body}}"}'),
+        CredentialField(key: 'url', label: 'URL do Webhook'),
+        CredentialField(key: 'method', label: 'Método HTTP (GET/POST)'),
+        CredentialField(key: 'body_template', label: 'Template do body (use {{to}} e {{body}})'),
+        CredentialField(key: 'headers', label: 'Headers JSON (opcional)'),
       ],
     ),
   };
 
-  static MessageGateway build(String type) {
-    final factory = _factories[type];
-    if (factory == null) throw ArgumentError('Provedor desconhecido: $type');
-    return factory();
-  }
+  static List<String> get registeredTypes => _factories.keys.toList();
 
-  static List<ProviderMeta> get allProviders => metadata.values.toList();
+  static MessageGateway? create(String type) => _factories[type]?.call();
+
+  static ProviderMeta? getMeta(String type) => metadata[type];
 }
 
 class ProviderMeta {

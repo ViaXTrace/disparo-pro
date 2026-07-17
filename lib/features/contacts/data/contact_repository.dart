@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/daos/contacts_dao.dart';
+import 'vcf_parser.dart';
 
 class ContactRepository {
   final ContactsDao _dao;
@@ -48,6 +49,8 @@ class ContactRepository {
   Future<int> delete(int id) => _dao.deleteContact(id);
   Future<void> setOptOut(int id, bool value) => _dao.setOptOut(id, value);
 
+  // ── CSV Import ─────────────────────────────────────────────────────────────
+
   Future<({int imported, int duplicates})> importFromCsv(
     String csvContent, {
     required int phoneColumnIndex,
@@ -79,6 +82,38 @@ class ContactRepository {
     return (imported: imported, duplicates: duplicates);
   }
 
+  // ── VCF Import ─────────────────────────────────────────────────────────────
+
+  /// Analisa e importa contatos de um arquivo VCF (vCard 2.1 / 3.0 / 4.0).
+  /// Não requer dependências externas — parser 100% Dart.
+  Future<({int imported, int duplicates})> importFromVcf(
+    String vcfContent,
+  ) async {
+    final contacts = VcfParser.parse(vcfContent);
+    if (contacts.isEmpty) return (imported: 0, duplicates: 0);
+
+    final companions = contacts
+        .where((c) => c.phone.isNotEmpty)
+        .map((c) => ContactsTableCompanion.insert(
+              name: c.name,
+              phone: _normalizePhone(c.phone),
+              email: Value(c.email),
+            ))
+        .toList();
+
+    int imported = 0;
+    for (var i = 0; i < companions.length; i += 500) {
+      final batch = companions.sublist(i, (i + 500).clamp(0, companions.length));
+      await _dao.bulkInsert(batch);
+      imported += batch.length;
+    }
+
+    final duplicates = (contacts.length - imported).clamp(0, contacts.length);
+    return (imported: imported, duplicates: duplicates);
+  }
+
+  // ── Groups ────────────────────────────────────────────────────────────────
+
   Stream<List<ContactGroup>> watchGroups() => _dao.watchGroups();
   Future<List<ContactGroup>> getGroups() => _dao.getGroups();
   Future<ContactGroup?> getGroupById(int id) => _dao.getGroupById(id);
@@ -98,12 +133,14 @@ class ContactRepository {
   Future<void> addContactsToGroup(int groupId, List<int> contactIds) =>
       _dao.addContactsToGroup(groupId, contactIds);
 
+  // ── Internals ─────────────────────────────────────────────────────────────
+
   String _normalizePhone(String phone) {
     final digits = phone.replaceAll(RegExp(r'[^\d+]'), '');
     if (digits.isEmpty) return phone.trim();
-    if (!digits.startsWith('+') && !digits.startsWith('55') && digits.length <= 11) {
-      return '55$digits';
-    }
+    if (digits.startsWith('+')) return digits;
+    if (digits.startsWith('55') && digits.length >= 12) return '+$digits';
+    if (digits.length == 11 || digits.length == 10) return '+55$digits';
     return digits;
   }
 }
