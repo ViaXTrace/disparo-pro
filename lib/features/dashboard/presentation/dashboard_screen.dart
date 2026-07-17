@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/database/app_database.dart';
 import '../../campaigns/providers/campaigns_providers.dart';
 import '../../contacts/providers/contacts_providers.dart';
 
@@ -30,7 +31,6 @@ class DashboardScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Stats row
             stats.when(
               data: (s) => Row(children: [
                 Expanded(child: _StatCard(label: 'Enviadas hoje', value: _fmt(s['sent_today'] ?? 0), icon: Icons.send, color: Colors.blue)),
@@ -43,7 +43,6 @@ class DashboardScreen extends ConsumerWidget {
               error: (_, __) => const SizedBox.shrink(),
             ),
             const SizedBox(height: 16),
-            // Contact count banner
             contacts.when(
               data: (count) => count == 0
                   ? _EmptyBanner(onTap: () => context.go('/contacts/import'))
@@ -52,7 +51,6 @@ class DashboardScreen extends ConsumerWidget {
               error: (_, __) => const SizedBox.shrink(),
             ),
             const SizedBox(height: 20),
-            // Quick actions
             Text('Ações rápidas', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -62,7 +60,6 @@ class DashboardScreen extends ConsumerWidget {
               ActionChip(avatar: const Icon(Icons.bar_chart, size: 16), label: const Text('Relatórios'), onPressed: () => context.go('/reports')),
             ]),
             const SizedBox(height: 20),
-            // Recent campaigns
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -166,7 +163,7 @@ class _ContactBanner extends StatelessWidget {
 }
 
 class _CampaignTile extends StatelessWidget {
-  final dynamic campaign;
+  final Campaign campaign;
   const _CampaignTile({required this.campaign});
 
   Color _statusColor(String s) => switch (s) {
