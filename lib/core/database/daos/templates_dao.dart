@@ -32,9 +32,13 @@ class TemplatesDao extends DatabaseAccessor<AppDatabase> with _$TemplatesDaoMixi
   Future<int> insert(TemplatesTableCompanion entry) =>
       into(templatesTable).insert(entry);
 
-  Future<bool> update(TemplatesTableCompanion entry) =>
-      updateRow(templatesTable, entry);
+  Future<bool> updateTemplate(TemplatesTableCompanion entry) async {
+    final count = await (update(templatesTable)
+          ..where((t) => t.id.equals(entry.id.value)))
+        .write(entry);
+    return count > 0;
+  }
 
-  Future<int> delete(int id) =>
-      (deleteFrom(templatesTable)..where((t) => t.id.equals(id))).go();
+  Future<int> deleteTemplate(int id) =>
+      (delete(templatesTable)..where((t) => t.id.equals(id))).go();
 }
