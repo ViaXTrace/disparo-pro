@@ -94,18 +94,33 @@ class GatewayRegistry {
       credentialFields: [
         CredentialField(key: 'url', label: 'URL do Webhook'),
         CredentialField(key: 'method', label: 'Método HTTP (GET/POST)'),
-        CredentialField(key: 'body_template', label: 'Template do body (use {{to}} e {{body}})'),
+        CredentialField(
+            key: 'body_template',
+            label: 'Template do body (use {{to}} e {{body}})'),
         CredentialField(key: 'headers', label: 'Headers JSON (opcional)'),
       ],
     ),
   };
 
+  /// Lista de todos os provedores registrados (usada nas telas de UI).
+  static List<ProviderMeta> get allProviders => metadata.values.toList();
+
+  /// Lista de tipos de provedor disponíveis.
   static List<String> get registeredTypes => _factories.keys.toList();
 
-  static MessageGateway? create(String type) => _factories[type]?.call();
+  /// Constrói (instancia) um gateway pelo tipo.
+  /// Lança [ArgumentError] se o tipo não estiver registrado.
+  static MessageGateway build(String type) {
+    final factory = _factories[type];
+    if (factory == null) throw ArgumentError('Gateway não encontrado: $type');
+    return factory();
+  }
 
+  /// Retorna os metadados de um tipo de provedor.
   static ProviderMeta? getMeta(String type) => metadata[type];
 }
+
+// ── Data classes ─────────────────────────────────────────────────────────────
 
 class ProviderMeta {
   final String type;
