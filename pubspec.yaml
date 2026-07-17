@@ -50,6 +50,9 @@ dependencies:
   package_info_plus: ^8.0.0
   connectivity_plus: ^6.0.3
 
+  # Typography
+  google_fonts: ^6.2.1
+
   # UI extras
   flutter_svg: ^2.0.10
   cached_network_image: ^3.3.1
