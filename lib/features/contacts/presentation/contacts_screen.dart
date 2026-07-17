@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/database/tables/contacts_table.dart';
+import '../../../core/database/app_database.dart';
 import '../providers/contacts_providers.dart';
 
 class ContactsScreen extends ConsumerWidget {
@@ -24,7 +24,6 @@ class ContactsScreen extends ConsumerWidget {
           ],
         ),
         body: TabBarView(children: [
-          // ── Contacts Tab ──────────────────────────────────────────────────
           Column(children: [
             Padding(
               padding: const EdgeInsets.all(12),
@@ -48,8 +47,6 @@ class ContactsScreen extends ConsumerWidget {
               ),
             ),
           ]),
-
-          // ── Groups Tab ────────────────────────────────────────────────────
           groups.when(
             data: (list) => list.isEmpty
                 ? _Empty(
@@ -139,7 +136,7 @@ class _ContactTile extends StatelessWidget {
 }
 
 class _GroupTile extends StatelessWidget {
-  final dynamic group;
+  final ContactGroup group;
   final WidgetRef ref;
   const _GroupTile({required this.group, required this.ref});
 
