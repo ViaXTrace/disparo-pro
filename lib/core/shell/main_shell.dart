@@ -80,7 +80,7 @@ class _FloatingNav extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
-          height: 64,
+          height: 58,
           decoration: BoxDecoration(
             color: isDark
                 ? const Color(0xFF0E0F17).withOpacity(0.82)
@@ -100,13 +100,12 @@ class _FloatingNav extends StatelessWidget {
             ],
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _NavItem(icon: Icons.grid_view_rounded,       label: 'Início',     active: selectedIndex == 0, accent: accent, onTap: () => onTap(0)),
-              _NavItem(icon: Icons.people_outline_rounded,  label: 'Contatos',   active: selectedIndex == 1, accent: accent, onTap: () => onTap(1)),
-              _NavItem(icon: Icons.send_rounded,            label: 'Campanhas',  active: selectedIndex == 2, accent: accent, onTap: () => onTap(2)),
-              _NavItem(icon: Icons.article_outlined,        label: 'Templates',  active: selectedIndex == 3, accent: accent, onTap: () => onTap(3)),
-              _NavItem(icon: Icons.settings_outlined,       label: 'Config',     active: selectedIndex == 4, accent: accent, onTap: () => onTap(4)),
+              Expanded(child: _NavItem(icon: Icons.grid_view_rounded,      label: 'Início',    active: selectedIndex == 0, accent: accent, onTap: () => onTap(0))),
+              Expanded(child: _NavItem(icon: Icons.people_outline_rounded, label: 'Contatos',  active: selectedIndex == 1, accent: accent, onTap: () => onTap(1))),
+              Expanded(child: _NavItem(icon: Icons.send_rounded,           label: 'Campanhas', active: selectedIndex == 2, accent: accent, onTap: () => onTap(2))),
+              Expanded(child: _NavItem(icon: Icons.article_outlined,       label: 'Templates', active: selectedIndex == 3, accent: accent, onTap: () => onTap(3))),
+              Expanded(child: _NavItem(icon: Icons.settings_outlined,      label: 'Config',    active: selectedIndex == 4, accent: accent, onTap: () => onTap(4))),
             ],
           ),
         ),
@@ -140,24 +139,25 @@ class _NavItem extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: SizedBox(
-        width: 60,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 22, color: active ? accent : mutedColor),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 9.5,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                color: active ? accent : mutedColor,
-                letterSpacing: active ? 0.1 : 0,
-              ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 20, color: active ? accent : mutedColor),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 9,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+              color: active ? accent : mutedColor,
+              letterSpacing: 0,
             ),
-          ],
-        ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }

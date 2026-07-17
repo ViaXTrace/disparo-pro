@@ -38,7 +38,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
                     Text(
                       'Contatos',
                       style: GoogleFonts.poppins(
-                        fontSize: 26, fontWeight: FontWeight.w800,
+                        fontSize: 22, fontWeight: FontWeight.w800,
                         color: isDark ? AppColors.textDark : AppColors.textLight,
                         letterSpacing: -0.6, height: 1.1,
                       ),

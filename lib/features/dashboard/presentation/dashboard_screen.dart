@@ -178,7 +178,7 @@ class _DashboardAppBar extends StatelessWidget {
               Text(
                 'DyanX',
                 style: GoogleFonts.poppins(
-                  fontSize: 24, fontWeight: FontWeight.w800,
+                  fontSize: 20, fontWeight: FontWeight.w800,
                   color: isDark ? AppColors.textDark : AppColors.textLight,
                   letterSpacing: -0.6, height: 1.1,
                 ),
@@ -240,7 +240,7 @@ class _DeliveryCard extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.fromLTRB(0, 24, 0, 20),
+      padding: const EdgeInsets.fromLTRB(0, 14, 0, 12),
       child: Column(children: [
         // Ring
         _DeliveryRing(pct: shimmer ? 0 : pct, accent: accent, isDark: isDark),
@@ -304,10 +304,10 @@ class _DeliveryRingState extends State<_DeliveryRing> with SingleTickerProviderS
       builder: (_, __) {
         final drawn = _anim.value * widget.pct;
         return SizedBox(
-          width: 180, height: 180,
+          width: 152, height: 152,
           child: Stack(alignment: Alignment.center, children: [
             CustomPaint(
-              size: const Size(180, 180),
+              size: const Size(152, 152),
               painter: _RingPainter(
                 progress: drawn,
                 accent: widget.accent,
@@ -323,7 +323,7 @@ class _DeliveryRingState extends State<_DeliveryRing> with SingleTickerProviderS
                     TextSpan(
                       text: '${(drawn * 100).toStringAsFixed(1)}',
                       style: GoogleFonts.dmMono(
-                        fontSize: 34, fontWeight: FontWeight.w700,
+                        fontSize: 28, fontWeight: FontWeight.w700,
                         color: widget.isDark ? AppColors.textDark : AppColors.textLight,
                         letterSpacing: -1.5, height: 1,
                       ),
@@ -413,7 +413,7 @@ class _SubStat extends StatelessWidget {
     return Column(children: [
       Text(
         _fmt(value),
-        style: GoogleFonts.dmMono(fontSize: 15, fontWeight: FontWeight.w700, color: color, letterSpacing: -0.3),
+        style: GoogleFonts.dmMono(fontSize: 13, fontWeight: FontWeight.w700, color: color, letterSpacing: -0.3),
       ),
       const SizedBox(height: 2),
       Text(label, style: GoogleFonts.poppins(fontSize: 10, color: color.withOpacity(0.6), fontWeight: FontWeight.w500, letterSpacing: 0.3)),
@@ -465,7 +465,7 @@ class _MiniStat extends StatelessWidget {
           Text(
             _fmt(value),
             style: GoogleFonts.dmMono(
-              fontSize: 20, fontWeight: FontWeight.w700,
+              fontSize: 17, fontWeight: FontWeight.w700,
               color: isDark ? AppColors.textDark : AppColors.textLight,
               letterSpacing: -0.5,
             ),

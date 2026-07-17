@@ -40,7 +40,7 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
                     Text(
                       'Campanhas',
                       style: GoogleFonts.poppins(
-                        fontSize: 26, fontWeight: FontWeight.w800,
+                        fontSize: 22, fontWeight: FontWeight.w800,
                         color: isDark ? AppColors.textDark : AppColors.textLight,
                         letterSpacing: -0.6, height: 1.1,
                       ),
@@ -89,12 +89,14 @@ class _CampaignsScreenState extends ConsumerState<CampaignsScreen> {
             ),
           ),
 
-          // Segmented filter
+          // Segmented filter — padding lives inside the scroll view so the
+          // last chip is not clipped by a parent SliverPadding right edge.
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+            padding: const EdgeInsets.only(top: 16),
             sliver: SliverToBoxAdapter(
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(
                   children: List.generate(_tabs.length, (i) {
                     final active = _tab == i;
