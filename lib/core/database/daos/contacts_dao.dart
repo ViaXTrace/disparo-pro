@@ -10,8 +10,6 @@ part 'contacts_dao.g.dart';
 class ContactsDao extends DatabaseAccessor<AppDatabase> with _$ContactsDaoMixin {
   ContactsDao(super.db);
 
-  // ── Contacts ──────────────────────────────────────────────────────────────
-
   Stream<List<Contact>> watchAll({String? search}) {
     final q = select(contactsTable);
     if (search != null && search.isNotEmpty) {
@@ -37,11 +35,15 @@ class ContactsDao extends DatabaseAccessor<AppDatabase> with _$ContactsDaoMixin 
   Future<void> bulkInsert(List<ContactsTableCompanion> entries) =>
       batch((b) => b.insertAll(contactsTable, entries, mode: InsertMode.insertOrIgnore));
 
-  Future<bool> update(ContactsTableCompanion entry) =>
-      updateRow(contactsTable, entry);
+  Future<bool> updateContact(ContactsTableCompanion entry) async {
+    final count = await (update(contactsTable)
+          ..where((t) => t.id.equals(entry.id.value)))
+        .write(entry);
+    return count > 0;
+  }
 
-  Future<int> delete(int id) =>
-      (deleteFrom(contactsTable)..where((t) => t.id.equals(id))).go();
+  Future<int> deleteContact(int id) =>
+      (delete(contactsTable)..where((t) => t.id.equals(id))).go();
 
   Future<void> setOptOut(int id, bool value) =>
       (update(contactsTable)..where((t) => t.id.equals(id)))
@@ -53,8 +55,6 @@ class ContactsDao extends DatabaseAccessor<AppDatabase> with _$ContactsDaoMixin 
     final row = await q.getSingle();
     return row.read(count) ?? 0;
   }
-
-  // ── Contact Groups ────────────────────────────────────────────────────────
 
   Stream<List<ContactGroup>> watchGroups() =>
       (select(contactGroupsTable)..orderBy([(t) => OrderingTerm(expression: t.name)])).watch();
@@ -69,10 +69,10 @@ class ContactsDao extends DatabaseAccessor<AppDatabase> with _$ContactsDaoMixin 
       into(contactGroupsTable).insert(entry);
 
   Future<int> deleteGroup(int id) async {
-    await (deleteFrom(contactGroupMembersTable)
+    await (delete(contactGroupMembersTable)
           ..where((t) => t.groupId.equals(id)))
         .go();
-    return (deleteFrom(contactGroupsTable)..where((t) => t.id.equals(id))).go();
+    return (delete(contactGroupsTable)..where((t) => t.id.equals(id))).go();
   }
 
   Future<List<Contact>> getGroupContacts(int groupId) async {
@@ -109,7 +109,7 @@ class ContactsDao extends DatabaseAccessor<AppDatabase> with _$ContactsDaoMixin 
       });
 
   Future<int> removeContactFromGroup(int groupId, int contactId) =>
-      (deleteFrom(contactGroupMembersTable)
+      (delete(contactGroupMembersTable)
             ..where((t) => t.groupId.equals(groupId) & t.contactId.equals(contactId)))
           .go();
 }
