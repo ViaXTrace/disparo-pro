@@ -64,15 +64,15 @@ class CampaignsDao extends DatabaseAccessor<AppDatabase> with _$CampaignsDaoMixi
   Future<int> insertLog(MessageLogsTableCompanion entry) =>
       into(messageLogsTable).insert(entry);
 
-  Future<void> updateLogStatus(int logId, String status, {String? externalId}) =>
-      (update(messageLogsTable)..where((t) => t.id.equals(logId))).write(
-        MessageLogsTableCompanion(
-          status: Value(status),
-          if (externalId != null) externalId: Value(externalId),
-          if (status == 'delivered') deliveredAt: Value(DateTime.now()),
-          if (status == 'read') readAt: Value(DateTime.now()),
-        ),
-      );
+  Future<void> updateLogStatus(int logId, String status, {String? externalId}) async {
+    final companion = MessageLogsTableCompanion(
+      status: Value(status),
+      externalId: externalId != null ? Value(externalId) : const Value.absent(),
+      deliveredAt: status == 'delivered' ? Value(DateTime.now()) : const Value.absent(),
+      readAt: status == 'read' ? Value(DateTime.now()) : const Value.absent(),
+    );
+    await (update(messageLogsTable)..where((t) => t.id.equals(logId))).write(companion);
+  }
 
   Future<Map<String, int>> getCampaignStats(int campaignId) async {
     final logs = await getLogs(campaignId);
