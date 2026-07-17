@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/database/app_database.dart';
 import '../../campaigns/providers/campaigns_providers.dart';
 
 class CampaignsScreen extends ConsumerWidget {
@@ -66,7 +67,7 @@ class _CampaignList extends ConsumerWidget {
 }
 
 class _CampaignCard extends StatelessWidget {
-  final dynamic campaign;
+  final Campaign campaign;
   final WidgetRef ref;
   const _CampaignCard({required this.campaign, required this.ref});
 
@@ -90,7 +91,7 @@ class _CampaignCard extends StatelessWidget {
 
   IconData _channelIcon(String c) => switch (c) {
     'rcs' => Icons.chat_bubble_outline,
-    'whatsapp' => Icons.whatsapp,
+    'whatsapp' => Icons.chat,
     _ => Icons.sms,
   };
 
@@ -119,8 +120,10 @@ class _CampaignCard extends StatelessWidget {
             if (campaign.totalContacts > 0) ...[
               const SizedBox(height: 10),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('${campaign.sent}/${campaign.totalContacts} enviadas', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                Text('${(prog * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 12, color: _color(campaign.status), fontWeight: FontWeight.bold)),
+                Text('${campaign.sent}/${campaign.totalContacts} enviadas',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text('${(prog * 100).toStringAsFixed(0)}%',
+                    style: TextStyle(fontSize: 12, color: _color(campaign.status), fontWeight: FontWeight.bold)),
               ]),
               const SizedBox(height: 4),
               LinearProgressIndicator(value: prog, color: _color(campaign.status), minHeight: 4),
@@ -129,7 +132,8 @@ class _CampaignCard extends StatelessWidget {
             Row(children: [
               const Icon(Icons.access_time, size: 12, color: Colors.grey),
               const SizedBox(width: 4),
-              Text(DateFormat('dd/MM/yyyy HH:mm').format(campaign.createdAt), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(DateFormat('dd/MM/yyyy HH:mm').format(campaign.createdAt),
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
             ]),
           ]),
         ),
