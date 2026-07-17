@@ -8,6 +8,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build APK & AAB
@@ -86,8 +89,6 @@ jobs:
           files: build/app/outputs/flutter-apk/app-debug.apk
           prerelease: true
           draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ── Release build (tags v*.*.*) ───────────────────────────────────────
       - name: Decode keystore
@@ -118,5 +119,3 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
