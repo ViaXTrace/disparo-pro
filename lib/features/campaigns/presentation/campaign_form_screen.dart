@@ -170,8 +170,8 @@ class _CampaignFormScreenState extends ConsumerState<CampaignFormScreen> {
                       onChanged: (v) {
                         setState(() => _templateId = v);
                         if (v != null) {
-                          final t = (list as List).firstWhere((t) => t.id == v, orElse: () => null);
-                          if (t != null) _bodyCtrl.text = t.body;
+                          final matches = list.where((t) => t.id == v);
+                          if (matches.isNotEmpty) _bodyCtrl.text = matches.first.body;
                         }
                       },
                     ),
