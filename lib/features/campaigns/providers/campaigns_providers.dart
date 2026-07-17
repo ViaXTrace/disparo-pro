@@ -8,12 +8,12 @@ final campaignRepositoryProvider = Provider<CampaignRepository>((ref) {
   return CampaignRepository(db);
 });
 
-final campaignsStreamProvider = StreamProvider.family<dynamic, String?>((ref, filter) {
+final campaignsStreamProvider = StreamProvider.family<List<Campaign>, String?>((ref, filter) {
   final repo = ref.watch(campaignRepositoryProvider);
   return repo.watchAll(statusFilter: filter);
 });
 
-final campaignDetailProvider = StreamProvider.family((ref, int id) {
+final campaignDetailProvider = StreamProvider.family<Campaign?, int>((ref, id) {
   final repo = ref.watch(campaignRepositoryProvider);
   return repo.watchById(id);
 });
@@ -23,7 +23,7 @@ final campaignStatsProvider = FutureProvider.family<Map<String, int>, int>((ref,
   return repo.getStats(id);
 });
 
-final campaignLogsProvider = StreamProvider.family((ref, int id) {
+final campaignLogsProvider = StreamProvider.family<List<MessageLog>, int>((ref, id) {
   final repo = ref.watch(campaignRepositoryProvider);
   return repo.watchLogs(id);
 });
