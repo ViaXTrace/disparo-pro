@@ -58,7 +58,7 @@ class CampaignRepository {
     DateTime? scheduledAt,
     int? batchSize,
     int? delayBetweenBatchesMs,
-  }) => _dao.update(CampaignsTableCompanion(
+  }) => _dao.updateCampaign(CampaignsTableCompanion(
         id: Value(campaign.id),
         name: name != null ? Value(name) : const Value.absent(),
         channel: channel != null ? Value(channel) : const Value.absent(),
@@ -71,7 +71,7 @@ class CampaignRepository {
         delayBetweenBatchesMs: delayBetweenBatchesMs != null ? Value(delayBetweenBatchesMs) : const Value.absent(),
       ));
 
-  Future<int> delete(int id) => _dao.delete(id);
+  Future<int> delete(int id) => _dao.deleteCampaign(id);
 
   Future<Map<String, int>> getStats(int campaignId) => _dao.getCampaignStats(campaignId);
 
