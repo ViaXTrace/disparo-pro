@@ -4,7 +4,6 @@ import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/daos/templates_dao.dart';
-import '../../../core/database/tables/templates_table.dart';
 
 class TemplateRepository {
   final TemplatesDao _dao;
@@ -38,7 +37,7 @@ class TemplateRepository {
     String? channel,
     String? mediaUrl,
     List<String>? variables,
-  }) => _dao.update(TemplatesTableCompanion(
+  }) => _dao.updateTemplate(TemplatesTableCompanion(
         id: Value(template.id),
         name: name != null ? Value(name) : const Value.absent(),
         body: body != null ? Value(body) : const Value.absent(),
@@ -48,7 +47,7 @@ class TemplateRepository {
         updatedAt: Value(DateTime.now()),
       ));
 
-  Future<int> delete(int id) => _dao.delete(id);
+  Future<int> delete(int id) => _dao.deleteTemplate(id);
 
   /// Applies variable substitution to template body.
   String apply(String body, Map<String, String> values) {
