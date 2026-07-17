@@ -72,7 +72,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: ':id/edit',
                 name: 'provider-edit',
-                builder: (_, state) => ProviderFormScreen(id: int.parse(state.pathParameters['id']!)),
+                builder: (_, state) => ProviderFormScreen(id: state.pathParameters['id']),
               ),
             ],
           ),
