@@ -13,8 +13,6 @@ class ContactRepository {
 
   ContactRepository(AppDatabase db) : _dao = db.contactsDao;
 
-  // ── Contacts ──────────────────────────────────────────────────────────────
-
   Stream<List<Contact>> watchAll({String? search}) => _dao.watchAll(search: search);
   Future<List<Contact>> getAll() => _dao.getAll();
   Future<Contact?> getById(int id) => _dao.getById(id);
@@ -40,7 +38,7 @@ class ContactRepository {
     String? phone,
     String? email,
     bool? optedOut,
-  }) => _dao.update(ContactsTableCompanion(
+  }) => _dao.updateContact(ContactsTableCompanion(
         id: Value(contact.id),
         name: name != null ? Value(name) : const Value.absent(),
         phone: phone != null ? Value(_normalizePhone(phone)) : const Value.absent(),
@@ -49,10 +47,9 @@ class ContactRepository {
         updatedAt: Value(DateTime.now()),
       ));
 
-  Future<int> delete(int id) => _dao.delete(id);
+  Future<int> delete(int id) => _dao.deleteContact(id);
   Future<void> setOptOut(int id, bool value) => _dao.setOptOut(id, value);
 
-  /// Imports from CSV string. Returns (imported, duplicates).
   Future<({int imported, int duplicates})> importFromCsv(
     String csvContent, {
     required int phoneColumnIndex,
@@ -63,8 +60,6 @@ class ContactRepository {
     final data = hasHeader && rows.isNotEmpty ? rows.sublist(1) : rows;
 
     int imported = 0;
-    int duplicates = 0;
-
     final companions = <ContactsTableCompanion>[];
     for (final row in data) {
       if (row.isEmpty) continue;
@@ -73,25 +68,18 @@ class ContactRepository {
       final name = nameColumnIndex < row.length
           ? row[nameColumnIndex]?.toString().trim() ?? phone
           : phone;
-
-      companions.add(ContactsTableCompanion.insert(
-        name: name,
-        phone: phone,
-      ));
+      companions.add(ContactsTableCompanion.insert(name: name, phone: phone));
     }
 
-    // Insert in batches of 500
     for (var i = 0; i < companions.length; i += 500) {
-      final batch = companions.sublist(i, i + 500 > companions.length ? companions.length : i + 500);
+      final batch = companions.sublist(i, (i + 500).clamp(0, companions.length));
       await _dao.bulkInsert(batch);
       imported += batch.length;
     }
 
-    duplicates = data.length - imported;
-    return (imported: imported, duplicates: duplicates < 0 ? 0 : duplicates);
+    final duplicates = (data.length - imported).clamp(0, data.length);
+    return (imported: imported, duplicates: duplicates);
   }
-
-  // ── Groups ────────────────────────────────────────────────────────────────
 
   Stream<List<ContactGroup>> watchGroups() => _dao.watchGroups();
   Future<List<ContactGroup>> getGroups() => _dao.getGroups();
@@ -113,10 +101,8 @@ class ContactRepository {
       _dao.addContactsToGroup(groupId, contactIds);
 
   String _normalizePhone(String phone) {
-    // Keep only digits and + at start
     final digits = phone.replaceAll(RegExp(r'[^\d+]'), '');
     if (digits.isEmpty) return phone.trim();
-    // Ensure Brazilian number has country code
     if (!digits.startsWith('+') && !digits.startsWith('55') && digits.length <= 11) {
       return '55$digits';
     }
