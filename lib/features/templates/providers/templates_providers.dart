@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
-import '../../../core/database/daos/templates_dao.dart';
 import '../data/template_repository.dart';
 
 final templateRepositoryProvider = Provider<TemplateRepository>((ref) {
