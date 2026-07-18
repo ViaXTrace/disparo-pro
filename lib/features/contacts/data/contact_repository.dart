@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:csv/csv.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/daos/contacts_dao.dart';
@@ -110,6 +111,49 @@ class ContactRepository {
 
     final duplicates = (contacts.length - imported).clamp(0, contacts.length);
     return (imported: imported, duplicates: duplicates);
+  }
+
+  // ── Device contacts import ────────────────────────────────────────────────
+
+  /// Solicita permissão de leitura da agenda. Retorna true se concedida.
+  Future<bool> requestContactsPermission() =>
+      fc.FlutterContacts.requestPermission(readonly: true);
+
+  /// Carrega todos os contatos do dispositivo com telefone e e-mail.
+  Future<List<fc.Contact>> getDeviceContacts() =>
+      fc.FlutterContacts.getContacts(withProperties: true, sorted: true);
+
+  /// Importa a lista de contatos do dispositivo para o banco local.
+  /// Duplicatas (mesmo número) são silenciosamente ignoradas pelo DAO.
+  Future<({int imported, int skipped, int duplicates})> importFromDevice(
+    List<fc.Contact> deviceContacts,
+  ) async {
+    final companions = <ContactsTableCompanion>[];
+    int skipped = 0;
+
+    for (final c in deviceContacts) {
+      if (c.phones.isEmpty) { skipped++; continue; }
+      final phone = _normalizePhone(c.phones.first.number);
+      if (phone.isEmpty) { skipped++; continue; }
+      final name  = c.displayName.isNotEmpty ? c.displayName : phone;
+      final email = c.emails.isNotEmpty ? c.emails.first.address : null;
+      companions.add(ContactsTableCompanion.insert(
+        name:  name,
+        phone: phone,
+        email: Value(email),
+      ));
+    }
+
+    int imported = 0;
+    for (var i = 0; i < companions.length; i += 500) {
+      final batch = companions.sublist(i, (i + 500).clamp(0, companions.length));
+      await _dao.bulkInsert(batch);
+      imported += batch.length;
+    }
+
+    final withPhone  = deviceContacts.length - skipped;
+    final duplicates = (withPhone - imported).clamp(0, withPhone);
+    return (imported: imported, skipped: skipped, duplicates: duplicates);
   }
 
   // ── Groups ────────────────────────────────────────────────────────────────

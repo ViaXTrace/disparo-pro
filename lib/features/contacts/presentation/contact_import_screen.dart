@@ -2,13 +2,16 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../data/vcf_parser.dart';
 import '../providers/contacts_providers.dart';
 
 // ═══════════════════════════════════════════════════════════════════
-//  ContactImportScreen — suporta CSV e VCF (vCard)
+//  ContactImportScreen — CSV · VCF · Agenda do Dispositivo
 // ═══════════════════════════════════════════════════════════════════
 
 class ContactImportScreen extends ConsumerStatefulWidget {
@@ -25,7 +28,7 @@ class _ContactImportScreenState extends ConsumerState<ContactImportScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -38,18 +41,21 @@ class _ContactImportScreenState extends ConsumerState<ContactImportScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Importar Contatos'),
+        title: Text('Importar Contatos', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
         bottom: TabBar(
           controller: _tab,
+          labelStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: GoogleFonts.poppins(fontSize: 12),
           tabs: const [
-            Tab(icon: Icon(Icons.table_chart_outlined), text: 'CSV'),
-            Tab(icon: Icon(Icons.contact_phone_outlined), text: 'VCF / vCard'),
+            Tab(icon: Icon(Icons.table_chart_outlined),    text: 'CSV'),
+            Tab(icon: Icon(Icons.contact_phone_outlined),  text: 'VCF / vCard'),
+            Tab(icon: Icon(Icons.contacts_rounded),        text: 'Agenda'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tab,
-        children: const [_CsvImportTab(), _VcfImportTab()],
+        children: const [_CsvImportTab(), _VcfImportTab(), _DeviceContactsTab()],
       ),
     );
   }
@@ -382,6 +388,520 @@ class _VcfImportTabState extends ConsumerState<_VcfImportTab> {
       setState(() => _importing = false);
     }
   }
+}
+
+// ───────────────────────────────────────────────────────────────────
+// Aba — Agenda do Dispositivo
+// ───────────────────────────────────────────────────────────────────
+
+enum _DevState { idle, loading, loaded, importing, done, denied }
+
+class _DeviceContactsTab extends ConsumerStatefulWidget {
+  const _DeviceContactsTab();
+
+  @override
+  ConsumerState<_DeviceContactsTab> createState() => _DeviceContactsTabState();
+}
+
+class _DeviceContactsTabState extends ConsumerState<_DeviceContactsTab> {
+  _DevState _state = _DevState.idle;
+
+  List<fc.Contact> _all     = [];
+  List<fc.Contact> _filtered = [];
+  final Set<String> _selected = {};
+  final _searchCtrl = TextEditingController();
+
+  int? _imported;
+  int? _duplicates;
+  int? _skipped;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Permission + load ─────────────────────────────────────────────
+
+  Future<void> _requestAndLoad() async {
+    setState(() => _state = _DevState.loading);
+    final granted = await ref.read(contactRepositoryProvider)
+        .requestContactsPermission();
+    if (!granted) {
+      setState(() => _state = _DevState.denied);
+      return;
+    }
+    await _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _state = _DevState.loading);
+    final contacts = await ref.read(contactRepositoryProvider)
+        .getDeviceContacts();
+    setState(() {
+      _all      = contacts;
+      _filtered = contacts;
+      _state    = _DevState.loaded;
+    });
+  }
+
+  // ── Search ────────────────────────────────────────────────────────
+
+  void _onSearch(String q) {
+    final lower = q.toLowerCase();
+    setState(() {
+      _filtered = q.isEmpty
+          ? _all
+          : _all.where((c) {
+              final name  = c.displayName.toLowerCase();
+              final phone = c.phones.isNotEmpty ? c.phones.first.number : '';
+              return name.contains(lower) || phone.contains(lower);
+            }).toList();
+    });
+  }
+
+  // ── Select ────────────────────────────────────────────────────────
+
+  void _toggleAll() {
+    setState(() {
+      if (_selected.length == _filtered.length) {
+        _selected.clear();
+      } else {
+        _selected.addAll(_filtered.map((c) => c.id));
+      }
+    });
+  }
+
+  // ── Import ────────────────────────────────────────────────────────
+
+  Future<void> _import() async {
+    final toImport = _all.where((c) => _selected.contains(c.id)).toList();
+    setState(() => _state = _DevState.importing);
+    final result = await ref.read(contactRepositoryProvider)
+        .importFromDevice(toImport);
+    ref.invalidate(contactCountProvider);
+    setState(() {
+      _imported   = result.imported;
+      _duplicates = result.duplicates;
+      _skipped    = result.skipped;
+      _selected.clear();
+      _state      = _DevState.done;
+    });
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final accent  = Theme.of(context).colorScheme.primary;
+    final navPad  = MediaQuery.of(context).padding.bottom;
+
+    // ── Idle: solicitar permissão ──────────────────────────────────
+    if (_state == _DevState.idle) {
+      return _PermissionGate(
+        isDark: isDark,
+        accent: accent,
+        onRequest: _requestAndLoad,
+      );
+    }
+
+    // ── Negado ────────────────────────────────────────────────────
+    if (_state == _DevState.denied) {
+      return _PermissionGate(
+        isDark: isDark,
+        accent: accent,
+        denied: true,
+        onRequest: _requestAndLoad,
+      );
+    }
+
+    // ── Carregando ────────────────────────────────────────────────
+    if (_state == _DevState.loading) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          CircularProgressIndicator(strokeWidth: 2, color: accent),
+          const SizedBox(height: 16),
+          Text('Carregando agenda…', style: GoogleFonts.poppins(
+            fontSize: 13,
+            color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+          )),
+        ]),
+      );
+    }
+
+    // ── Importando ────────────────────────────────────────────────
+    if (_state == _DevState.importing) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          CircularProgressIndicator(strokeWidth: 2, color: accent),
+          const SizedBox(height: 16),
+          Text('Importando ${_selected.length} contato${_selected.length != 1 ? "s" : ""}…',
+            style: GoogleFonts.poppins(fontSize: 13,
+              color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight)),
+        ]),
+      );
+    }
+
+    // ── Concluído ─────────────────────────────────────────────────
+    if (_state == _DevState.done) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(20, 24, 20, navPad + 24),
+        child: Column(children: [
+          _BigResultCard(
+            isDark: isDark,
+            imported:   _imported   ?? 0,
+            duplicates: _duplicates ?? 0,
+            skipped:    _skipped    ?? 0,
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: Text('Importar mais', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+              onPressed: () {
+                setState(() {
+                  _state = _DevState.loaded;
+                  _imported = _duplicates = _skipped = null;
+                });
+              },
+            ),
+          ),
+        ]),
+      );
+    }
+
+    // ── Lista carregada ───────────────────────────────────────────
+    final allSelected  = _filtered.isNotEmpty && _selected.length == _filtered.length;
+    final someSelected = _selected.isNotEmpty;
+    final borderColor  = isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    return Column(children: [
+      // Search + select-all bar
+      Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: Row(children: [
+          // Search field
+          Expanded(
+            child: Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: borderColor),
+              ),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: _onSearch,
+                style: GoogleFonts.poppins(fontSize: 13,
+                  color: isDark ? AppColors.textDark : AppColors.textLight),
+                decoration: InputDecoration(
+                  hintText: 'Buscar…',
+                  hintStyle: GoogleFonts.poppins(fontSize: 13,
+                    color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight),
+                  prefixIcon: Icon(Icons.search_rounded, size: 17,
+                    color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Select all toggle
+          GestureDetector(
+            onTap: _toggleAll,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: allSelected ? accent : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: allSelected ? accent : borderColor),
+              ),
+              child: Text(
+                allSelected ? 'Desmarcar' : 'Todos',
+                style: GoogleFonts.poppins(
+                  fontSize: 12, fontWeight: FontWeight.w600,
+                  color: allSelected ? Colors.white
+                    : (isDark ? AppColors.textSubDark : AppColors.textSubLight),
+                ),
+              ),
+            ),
+          ),
+        ]),
+      ),
+
+      // Summary line
+      Padding(
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
+        child: Row(children: [
+          Text(
+            '${_filtered.length} contato${_filtered.length != 1 ? "s" : ""}'
+            '${_all.length != _filtered.length ? " (filtrado de ${_all.length})" : ""}',
+            style: GoogleFonts.poppins(fontSize: 11.5,
+              color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight),
+          ),
+          const Spacer(),
+          if (someSelected)
+            Text(
+              '${_selected.length} selecionado${_selected.length != 1 ? "s" : ""}',
+              style: GoogleFonts.poppins(fontSize: 11.5,
+                fontWeight: FontWeight.w600, color: accent),
+            ),
+        ]),
+      ),
+
+      // Contact list
+      Expanded(
+        child: _filtered.isEmpty
+            ? Center(child: Text('Nenhum resultado',
+                style: GoogleFonts.poppins(fontSize: 13,
+                  color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight)))
+            : ListView.builder(
+                padding: EdgeInsets.only(bottom: navPad + (someSelected ? 80 : 16)),
+                itemCount: _filtered.length,
+                itemBuilder: (_, i) {
+                  final c       = _filtered[i];
+                  final checked = _selected.contains(c.id);
+                  final phone   = c.phones.isNotEmpty ? c.phones.first.number : '';
+                  final initials = c.displayName.isNotEmpty
+                      ? c.displayName.trim().split(RegExp(r'\s+')).take(2)
+                          .map((w) => w[0].toUpperCase()).join()
+                      : '?';
+                  final avatarColor = _kDevColors[i % _kDevColors.length];
+
+                  return InkWell(
+                    onTap: () => setState(() {
+                      if (checked) _selected.remove(c.id);
+                      else         _selected.add(c.id);
+                    }),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border(top: BorderSide(color: borderColor)),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                      child: Row(children: [
+                        // Avatar
+                        Container(
+                          width: 40, height: 40,
+                          decoration: BoxDecoration(
+                            color: avatarColor.withOpacity(0.14),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(initials, style: GoogleFonts.poppins(
+                            fontSize: 13, fontWeight: FontWeight.w800,
+                            color: avatarColor,
+                          )),
+                        ),
+                        const SizedBox(width: 12),
+                        // Name + phone
+                        Expanded(child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              c.displayName.isNotEmpty ? c.displayName : phone,
+                              style: GoogleFonts.poppins(fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? AppColors.textDark : AppColors.textLight),
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                            ),
+                            if (phone.isNotEmpty) ...[
+                              const SizedBox(height: 1),
+                              Text(phone, style: GoogleFonts.dmMono(fontSize: 11,
+                                color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight)),
+                            ],
+                          ],
+                        )),
+                        // Checkbox
+                        Checkbox(
+                          value: checked,
+                          onChanged: (_) => setState(() {
+                            if (checked) _selected.remove(c.id);
+                            else         _selected.add(c.id);
+                          }),
+                          activeColor: accent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(5)),
+                          side: BorderSide(
+                            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                            width: 1.5,
+                          ),
+                        ),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+      ),
+
+      // Floating import bar
+      if (someSelected)
+        Container(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, navPad + 12),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+            border: Border(top: BorderSide(color: borderColor)),
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              icon: const Icon(Icons.download_rounded, size: 17),
+              label: Text(
+                'Importar ${_selected.length} contato${_selected.length != 1 ? "s" : ""}',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
+              onPressed: _import,
+            ),
+          ),
+        ),
+    ]);
+  }
+}
+
+const _kDevColors = [
+  Color(0xFF818CF8), Color(0xFF34D399), Color(0xFFFBBF24),
+  Color(0xFFF87171), Color(0xFFA78BFA), Color(0xFF60A5FA),
+];
+
+// ── Permission gate ────────────────────────────────────────────────
+
+class _PermissionGate extends StatelessWidget {
+  final bool isDark, denied;
+  final Color accent;
+  final VoidCallback onRequest;
+  const _PermissionGate({
+    required this.isDark,
+    required this.accent,
+    required this.onRequest,
+    this.denied = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 36),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 72, height: 72,
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: accent.withOpacity(0.22)),
+            ),
+            child: Icon(
+              denied ? Icons.no_accounts_rounded : Icons.contacts_rounded,
+              size: 34, color: accent,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            denied ? 'Acesso negado' : 'Ler agenda do dispositivo',
+            style: GoogleFonts.poppins(
+              fontSize: 17, fontWeight: FontWeight.w700,
+              color: isDark ? AppColors.textDark : AppColors.textLight,
+              letterSpacing: -0.3,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            denied
+                ? 'Permissão negada. Abra as configurações do sistema, '
+                  'localize o DyanX e habilite o acesso à Agenda.'
+                : 'O DyanX precisa de permissão para ler seus contatos '
+                  'e importá-los para campanhas. Nenhum dado é enviado '
+                  'para servidores externos.',
+            style: GoogleFonts.poppins(
+              fontSize: 13, height: 1.55,
+              color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              icon: Icon(denied ? Icons.settings_rounded : Icons.lock_open_rounded, size: 16),
+              label: Text(
+                denied ? 'Abrir configurações' : 'Permitir acesso à agenda',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
+              onPressed: onRequest,
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Result card ───────────────────────────────────────────────────
+
+class _BigResultCard extends StatelessWidget {
+  final bool isDark;
+  final int imported, duplicates, skipped;
+  const _BigResultCard({
+    required this.isDark,
+    required this.imported,
+    required this.duplicates,
+    required this.skipped,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final green  = isDark ? AppColors.greenDark  : AppColors.greenLight;
+    final amber  = isDark ? AppColors.amberDark  : AppColors.amberLight;
+    final muted  = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: border),
+      ),
+      child: Column(children: [
+        Container(
+          width: 52, height: 52,
+          decoration: BoxDecoration(
+            color: green.withOpacity(0.12),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.check_rounded, size: 26, color: green),
+        ),
+        const SizedBox(height: 14),
+        Text('Importação concluída', style: GoogleFonts.poppins(
+          fontSize: 16, fontWeight: FontWeight.w700,
+          color: isDark ? AppColors.textDark : AppColors.textLight,
+        )),
+        const SizedBox(height: 16),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+          _Stat(value: imported,   label: 'Importados', color: green),
+          if (duplicates > 0) _Stat(value: duplicates, label: 'Duplicatas',  color: amber),
+          if (skipped > 0)    _Stat(value: skipped,    label: 'Sem telefone', color: muted),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  final int value; final String label; final Color color;
+  const _Stat({required this.value, required this.label, required this.color});
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    Text('$value', style: GoogleFonts.dmMono(
+      fontSize: 22, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.5)),
+    const SizedBox(height: 3),
+    Text(label, style: GoogleFonts.poppins(
+      fontSize: 11, color: color.withOpacity(0.7), fontWeight: FontWeight.w500)),
+  ]);
 }
 
 // ═══════════════════════════════════════════════════════════════════
