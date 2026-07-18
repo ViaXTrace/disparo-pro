@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -394,7 +395,8 @@ class _VcfImportTabState extends ConsumerState<_VcfImportTab> {
 // Aba — Agenda do Dispositivo
 // ───────────────────────────────────────────────────────────────────
 
-enum _DevState { idle, loading, loaded, importing, done, denied }
+// Phases of the device-contacts tab state machine.
+enum _Phase { checking, permRequired, permDenied, loading, ready, importing, done }
 
 class _DeviceContactsTab extends ConsumerStatefulWidget {
   const _DeviceContactsTab();
@@ -404,89 +406,146 @@ class _DeviceContactsTab extends ConsumerStatefulWidget {
 }
 
 class _DeviceContactsTabState extends ConsumerState<_DeviceContactsTab> {
-  _DevState _state = _DevState.idle;
+  _Phase _phase = _Phase.checking;
 
-  List<fc.Contact> _all     = [];
+  // Contact list — loaded without properties (names + IDs only).
+  List<fc.Contact> _all      = [];
   List<fc.Contact> _filtered = [];
-  final Set<String> _selected = {};
-  final _searchCtrl = TextEditingController();
 
-  int? _imported;
-  int? _duplicates;
-  int? _skipped;
+  // Selection state.
+  final Set<String> _selected = {};
+
+  // Search — debounced so typing over a million-row list stays smooth.
+  final _searchCtrl = TextEditingController();
+  Timer? _debounce;
+
+  // Import stream.
+  StreamSubscription<DevImportProgress>? _importSub;
+  DevImportProgress? _progress;
+  int _importTotal = 0; // snapshot of selected.length before clearing
+
+  // ── Lifecycle ─────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    // Check permission silently — no dialog, no re-ask after first grant.
+    _checkPermSilently();
+  }
 
   @override
   void dispose() {
+    _debounce?.cancel();
+    _importSub?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  // ── Permission + load ─────────────────────────────────────────────
+  // ── Permission ────────────────────────────────────────────────────
 
-  Future<void> _requestAndLoad() async {
-    setState(() => _state = _DevState.loading);
-    final granted = await ref.read(contactRepositoryProvider)
-        .requestContactsPermission();
-    if (!granted) {
-      setState(() => _state = _DevState.denied);
-      return;
+  /// Reads the OS permission status without prompting the user.
+  /// If already granted → loads immediately.
+  Future<void> _checkPermSilently() async {
+    final granted =
+        await ref.read(contactRepositoryProvider).isContactsPermissionGranted();
+    if (!mounted) return;
+    if (granted) {
+      _load();
+    } else {
+      setState(() => _phase = _Phase.permRequired);
     }
-    await _load();
   }
 
+  /// Shows the OS permission dialog. Navigates to load or denied gate.
+  Future<void> _requestAndLoad() async {
+    setState(() => _phase = _Phase.loading);
+    final granted =
+        await ref.read(contactRepositoryProvider).requestContactsPermission();
+    if (!mounted) return;
+    if (!granted) {
+      setState(() => _phase = _Phase.permDenied);
+      return;
+    }
+    _load();
+  }
+
+  // ── Load ──────────────────────────────────────────────────────────
+
+  /// Fetches IDs + display names only — fast even with 1 M contacts.
   Future<void> _load() async {
-    setState(() => _state = _DevState.loading);
-    final contacts = await ref.read(contactRepositoryProvider)
-        .getDeviceContacts();
+    setState(() => _phase = _Phase.loading);
+    final contacts =
+        await ref.read(contactRepositoryProvider).getDeviceContacts();
+    if (!mounted) return;
     setState(() {
       _all      = contacts;
       _filtered = contacts;
-      _state    = _DevState.loaded;
+      _phase    = _Phase.ready;
     });
   }
 
   // ── Search ────────────────────────────────────────────────────────
 
   void _onSearch(String q) {
-    final lower = q.toLowerCase();
-    setState(() {
-      _filtered = q.isEmpty
-          ? _all
-          : _all.where((c) {
-              final name  = c.displayName.toLowerCase();
-              final phone = c.phones.isNotEmpty ? c.phones.first.number : '';
-              return name.contains(lower) || phone.contains(lower);
-            }).toList();
+    _debounce?.cancel();
+    if (q.isEmpty) {
+      setState(() => _filtered = _all);
+      return;
+    }
+    // Debounce 280 ms — avoids filtering on every keystroke in huge lists.
+    _debounce = Timer(const Duration(milliseconds: 280), () {
+      final lower   = q.toLowerCase();
+      final results = _all
+          .where((c) => c.displayName.toLowerCase().contains(lower))
+          .toList();
+      if (mounted) setState(() => _filtered = results);
     });
   }
 
-  // ── Select ────────────────────────────────────────────────────────
+  // ── Selection ─────────────────────────────────────────────────────
 
-  void _toggleAll() {
-    setState(() {
-      if (_selected.length == _filtered.length) {
-        _selected.clear();
-      } else {
-        _selected.addAll(_filtered.map((c) => c.id));
-      }
-    });
-  }
+  void _toggleAll() => setState(() {
+        if (_selected.length == _filtered.length) {
+          _selected.clear();
+        } else {
+          _selected.addAll(_filtered.map((c) => c.id));
+        }
+      });
 
   // ── Import ────────────────────────────────────────────────────────
 
-  Future<void> _import() async {
-    final toImport = _all.where((c) => _selected.contains(c.id)).toList();
-    setState(() => _state = _DevState.importing);
-    final result = await ref.read(contactRepositoryProvider)
-        .importFromDevice(toImport);
-    ref.invalidate(contactCountProvider);
+  void _startImport() {
+    final ids    = _selected.toList();
+    _importTotal = ids.length;
+
     setState(() {
-      _imported   = result.imported;
-      _duplicates = result.duplicates;
-      _skipped    = result.skipped;
+      _phase    = _Phase.importing;
+      _progress = DevImportProgress(processed: 0, total: _importTotal, imported: 0);
       _selected.clear();
-      _state      = _DevState.done;
     });
+
+    _importSub = ref
+        .read(contactRepositoryProvider)
+        .importContactsByIds(ids)
+        .listen(
+          (p) { if (mounted) setState(() => _progress = p); },
+          onDone: () {
+            if (!mounted) return;
+            ref.invalidate(contactCountProvider);
+            setState(() => _phase = _Phase.done);
+          },
+          onError: (_) {
+            if (mounted) setState(() => _phase = _Phase.ready);
+          },
+          cancelOnError: true,
+        );
+  }
+
+  /// Cancels the running import mid-stream — safe at any point.
+  void _cancelImport() {
+    _importSub?.cancel();
+    _importSub = null;
+    if (mounted) setState(() { _phase = _Phase.ready; _progress = null; });
   }
 
   // ── Build ─────────────────────────────────────────────────────────
@@ -495,270 +554,331 @@ class _DeviceContactsTabState extends ConsumerState<_DeviceContactsTab> {
   Widget build(BuildContext context) {
     final isDark  = Theme.of(context).brightness == Brightness.dark;
     final accent  = Theme.of(context).colorScheme.primary;
+    final muted   = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
     final navPad  = MediaQuery.of(context).padding.bottom;
+    final border  = isDark ? AppColors.borderDark : AppColors.borderLight;
 
-    // ── Idle: solicitar permissão ──────────────────────────────────
-    if (_state == _DevState.idle) {
-      return _PermissionGate(
-        isDark: isDark,
-        accent: accent,
-        onRequest: _requestAndLoad,
-      );
-    }
-
-    // ── Negado ────────────────────────────────────────────────────
-    if (_state == _DevState.denied) {
-      return _PermissionGate(
-        isDark: isDark,
-        accent: accent,
-        denied: true,
-        onRequest: _requestAndLoad,
-      );
-    }
-
-    // ── Carregando ────────────────────────────────────────────────
-    if (_state == _DevState.loading) {
-      return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          CircularProgressIndicator(strokeWidth: 2, color: accent),
-          const SizedBox(height: 16),
-          Text('Carregando agenda…', style: GoogleFonts.poppins(
-            fontSize: 13,
-            color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
-          )),
-        ]),
-      );
-    }
-
-    // ── Importando ────────────────────────────────────────────────
-    if (_state == _DevState.importing) {
-      return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          CircularProgressIndicator(strokeWidth: 2, color: accent),
-          const SizedBox(height: 16),
-          Text('Importando ${_selected.length} contato${_selected.length != 1 ? "s" : ""}…',
-            style: GoogleFonts.poppins(fontSize: 13,
-              color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight)),
-        ]),
-      );
-    }
-
-    // ── Concluído ─────────────────────────────────────────────────
-    if (_state == _DevState.done) {
-      return Padding(
-        padding: EdgeInsets.fromLTRB(20, 24, 20, navPad + 24),
-        child: Column(children: [
-          _BigResultCard(
-            isDark: isDark,
-            imported:   _imported   ?? 0,
-            duplicates: _duplicates ?? 0,
-            skipped:    _skipped    ?? 0,
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.refresh_rounded, size: 16),
-              label: Text('Importar mais', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-              onPressed: () {
-                setState(() {
-                  _state = _DevState.loaded;
-                  _imported = _duplicates = _skipped = null;
-                });
-              },
+    switch (_phase) {
+      // ── Verification / loading ────────────────────────────────────
+      case _Phase.checking:
+      case _Phase.loading:
+        return Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            CircularProgressIndicator(strokeWidth: 2, color: accent),
+            const SizedBox(height: 16),
+            Text(
+              _phase == _Phase.checking
+                  ? 'Verificando permissões…'
+                  : 'Carregando agenda…',
+              style: GoogleFonts.poppins(fontSize: 13, color: muted),
             ),
+          ]),
+        );
+
+      // ── Permission gates ──────────────────────────────────────────
+      case _Phase.permRequired:
+        return _PermissionGate(
+            isDark: isDark, accent: accent, onRequest: _requestAndLoad);
+      case _Phase.permDenied:
+        return _PermissionGate(
+            isDark: isDark, accent: accent, denied: true,
+            onRequest: _requestAndLoad);
+
+      // ── Import in progress ────────────────────────────────────────
+      case _Phase.importing:
+        final p = _progress!;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(24, 0, 24, navPad + 24),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            // Icon
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                color: accent.withOpacity(0.10),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.download_rounded, size: 30, color: accent),
+            ),
+            const SizedBox(height: 20),
+            Text('Importando contatos…',
+                style: GoogleFonts.poppins(
+                  fontSize: 16, fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.textDark : AppColors.textLight)),
+            const SizedBox(height: 20),
+
+            // Progress bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: p.total > 0 ? p.pct : null,
+                minHeight: 6,
+                backgroundColor:
+                    isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.08),
+                valueColor: AlwaysStoppedAnimation(accent),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Counts
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text(
+                '${_fmt(p.processed)} / ${_fmt(p.total)}',
+                style: GoogleFonts.dmMono(fontSize: 12, color: muted),
+              ),
+              Text(
+                '${(p.pct * 100).toStringAsFixed(0)}%',
+                style: GoogleFonts.dmMono(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: accent),
+              ),
+            ]),
+            const SizedBox(height: 4),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text('Importados', style: GoogleFonts.poppins(fontSize: 11, color: muted)),
+              Text(_fmt(p.imported),
+                  style: GoogleFonts.dmMono(
+                    fontSize: 12, fontWeight: FontWeight.w700,
+                    color: isDark ? AppColors.greenDark : AppColors.greenLight)),
+            ]),
+            if (p.noPhone > 0) ...[
+              const SizedBox(height: 2),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Sem telefone', style: GoogleFonts.poppins(fontSize: 11, color: muted)),
+                Text(_fmt(p.noPhone),
+                    style: GoogleFonts.dmMono(fontSize: 12, color: muted)),
+              ]),
+            ],
+
+            const SizedBox(height: 28),
+            TextButton.icon(
+              onPressed: _cancelImport,
+              icon: const Icon(Icons.close_rounded, size: 15),
+              label: Text('Cancelar', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+              style: TextButton.styleFrom(foregroundColor: muted),
+            ),
+          ]),
+        );
+
+      // ── Done ──────────────────────────────────────────────────────
+      case _Phase.done:
+        final p = _progress!;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 24, 20, navPad + 24),
+          child: Column(children: [
+            _BigResultCard(
+              isDark: isDark,
+              imported:   p.imported,
+              duplicates: p.duplicates,
+              skipped:    p.noPhone,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: Text('Importar mais',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                onPressed: () =>
+                    setState(() { _phase = _Phase.ready; _progress = null; }),
+              ),
+            ),
+          ]),
+        );
+
+      // ── Ready: list + search + select ─────────────────────────────
+      case _Phase.ready:
+        final allSelected  =
+            _filtered.isNotEmpty && _selected.length == _filtered.length;
+        final someSelected = _selected.isNotEmpty;
+
+        return Column(children: [
+          // ── Toolbar ───────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(children: [
+              // Search field
+              Expanded(
+                child: Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: border),
+                  ),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: _onSearch,
+                    style: GoogleFonts.poppins(fontSize: 13,
+                        color: isDark ? AppColors.textDark : AppColors.textLight),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar por nome…',
+                      hintStyle: GoogleFonts.poppins(fontSize: 13, color: muted),
+                      prefixIcon: Icon(Icons.search_rounded, size: 17, color: muted),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Select-all toggle
+              GestureDetector(
+                onTap: _toggleAll,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: allSelected ? accent : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: allSelected ? accent : border),
+                  ),
+                  child: Text(
+                    allSelected ? 'Desmarcar' : 'Todos',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12, fontWeight: FontWeight.w600,
+                      color: allSelected
+                          ? Colors.white
+                          : (isDark ? AppColors.textSubDark : AppColors.textSubLight),
+                    ),
+                  ),
+                ),
+              ),
+            ]),
           ),
-        ]),
-      );
-    }
 
-    // ── Lista carregada ───────────────────────────────────────────
-    final allSelected  = _filtered.isNotEmpty && _selected.length == _filtered.length;
-    final someSelected = _selected.isNotEmpty;
-    final borderColor  = isDark ? AppColors.borderDark : AppColors.borderLight;
+          // ── Summary strip ──────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
+            child: Row(children: [
+              Text(
+                '${_fmt(_filtered.length)} contato${_filtered.length != 1 ? "s" : ""}'
+                '${_all.length != _filtered.length ? " de ${_fmt(_all.length)}" : ""}',
+                style: GoogleFonts.poppins(fontSize: 11.5, color: muted),
+              ),
+              const Spacer(),
+              if (someSelected)
+                Text(
+                  '${_fmt(_selected.length)} selecionado${_selected.length != 1 ? "s" : ""}',
+                  style: GoogleFonts.poppins(
+                      fontSize: 11.5, fontWeight: FontWeight.w600, color: accent),
+                ),
+            ]),
+          ),
 
-    return Column(children: [
-      // Search + select-all bar
-      Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: Row(children: [
-          // Search field
+          // ── Virtual list ──────────────────────────────────────────
           Expanded(
-            child: Container(
-              height: 40,
+            child: _filtered.isEmpty
+                ? Center(
+                    child: Text('Nenhum resultado',
+                        style: GoogleFonts.poppins(fontSize: 13, color: muted)))
+                : ListView.builder(
+                    // addRepaintBoundaries avoids repainting unchanged tiles
+                    // in enormous lists — important for 1 M-row performance.
+                    addRepaintBoundaries: true,
+                    addAutomaticKeepAlives: false,
+                    padding: EdgeInsets.only(
+                        bottom: navPad + (someSelected ? 80 : 16)),
+                    itemCount: _filtered.length,
+                    itemBuilder: (_, i) {
+                      final c          = _filtered[i];
+                      final checked    = _selected.contains(c.id);
+                      final avatarColor = _kDevColors[i % _kDevColors.length];
+                      final initials   = _initials(c.displayName);
+
+                      return RepaintBoundary(
+                        child: InkWell(
+                          onTap: () => setState(() => checked
+                              ? _selected.remove(c.id)
+                              : _selected.add(c.id)),
+                          child: Container(
+                            decoration: BoxDecoration(
+                                border: Border(top: BorderSide(color: border))),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 11),
+                            child: Row(children: [
+                              // Avatar
+                              Container(
+                                width: 40, height: 40,
+                                decoration: BoxDecoration(
+                                  color: avatarColor.withOpacity(0.14),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(initials,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13, fontWeight: FontWeight.w800,
+                                      color: avatarColor)),
+                              ),
+                              const SizedBox(width: 12),
+                              // Name
+                              // (no phone shown — not loaded without properties)
+                              Expanded(
+                                child: Text(
+                                  c.displayName.isNotEmpty ? c.displayName : '—',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13.5, fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? AppColors.textDark
+                                        : AppColors.textLight),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              // Checkbox
+                              Checkbox(
+                                value: checked,
+                                onChanged: (_) => setState(() => checked
+                                    ? _selected.remove(c.id)
+                                    : _selected.add(c.id)),
+                                activeColor: accent,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(5)),
+                                side: BorderSide(color: border, width: 1.5),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+
+          // ── Sticky import bar ─────────────────────────────────────
+          if (someSelected)
+            Container(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, navPad + 12),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: borderColor),
+                border: Border(top: BorderSide(color: border)),
               ),
-              child: TextField(
-                controller: _searchCtrl,
-                onChanged: _onSearch,
-                style: GoogleFonts.poppins(fontSize: 13,
-                  color: isDark ? AppColors.textDark : AppColors.textLight),
-                decoration: InputDecoration(
-                  hintText: 'Buscar…',
-                  hintStyle: GoogleFonts.poppins(fontSize: 13,
-                    color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight),
-                  prefixIcon: Icon(Icons.search_rounded, size: 17,
-                    color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.download_rounded, size: 17),
+                  label: Text(
+                    'Importar ${_fmt(_selected.length)} contato${_selected.length != 1 ? "s" : ""}',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                  ),
+                  onPressed: _startImport,
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          // Select all toggle
-          GestureDetector(
-            onTap: _toggleAll,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: allSelected ? accent : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: allSelected ? accent : borderColor),
-              ),
-              child: Text(
-                allSelected ? 'Desmarcar' : 'Todos',
-                style: GoogleFonts.poppins(
-                  fontSize: 12, fontWeight: FontWeight.w600,
-                  color: allSelected ? Colors.white
-                    : (isDark ? AppColors.textSubDark : AppColors.textSubLight),
-                ),
-              ),
-            ),
-          ),
-        ]),
-      ),
-
-      // Summary line
-      Padding(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
-        child: Row(children: [
-          Text(
-            '${_filtered.length} contato${_filtered.length != 1 ? "s" : ""}'
-            '${_all.length != _filtered.length ? " (filtrado de ${_all.length})" : ""}',
-            style: GoogleFonts.poppins(fontSize: 11.5,
-              color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight),
-          ),
-          const Spacer(),
-          if (someSelected)
-            Text(
-              '${_selected.length} selecionado${_selected.length != 1 ? "s" : ""}',
-              style: GoogleFonts.poppins(fontSize: 11.5,
-                fontWeight: FontWeight.w600, color: accent),
-            ),
-        ]),
-      ),
-
-      // Contact list
-      Expanded(
-        child: _filtered.isEmpty
-            ? Center(child: Text('Nenhum resultado',
-                style: GoogleFonts.poppins(fontSize: 13,
-                  color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight)))
-            : ListView.builder(
-                padding: EdgeInsets.only(bottom: navPad + (someSelected ? 80 : 16)),
-                itemCount: _filtered.length,
-                itemBuilder: (_, i) {
-                  final c       = _filtered[i];
-                  final checked = _selected.contains(c.id);
-                  final phone   = c.phones.isNotEmpty ? c.phones.first.number : '';
-                  final initials = c.displayName.isNotEmpty
-                      ? c.displayName.trim().split(RegExp(r'\s+')).take(2)
-                          .map((w) => w[0].toUpperCase()).join()
-                      : '?';
-                  final avatarColor = _kDevColors[i % _kDevColors.length];
-
-                  return InkWell(
-                    onTap: () => setState(() {
-                      if (checked) _selected.remove(c.id);
-                      else         _selected.add(c.id);
-                    }),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border(top: BorderSide(color: borderColor)),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-                      child: Row(children: [
-                        // Avatar
-                        Container(
-                          width: 40, height: 40,
-                          decoration: BoxDecoration(
-                            color: avatarColor.withOpacity(0.14),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(initials, style: GoogleFonts.poppins(
-                            fontSize: 13, fontWeight: FontWeight.w800,
-                            color: avatarColor,
-                          )),
-                        ),
-                        const SizedBox(width: 12),
-                        // Name + phone
-                        Expanded(child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              c.displayName.isNotEmpty ? c.displayName : phone,
-                              style: GoogleFonts.poppins(fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? AppColors.textDark : AppColors.textLight),
-                              maxLines: 1, overflow: TextOverflow.ellipsis,
-                            ),
-                            if (phone.isNotEmpty) ...[
-                              const SizedBox(height: 1),
-                              Text(phone, style: GoogleFonts.dmMono(fontSize: 11,
-                                color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight)),
-                            ],
-                          ],
-                        )),
-                        // Checkbox
-                        Checkbox(
-                          value: checked,
-                          onChanged: (_) => setState(() {
-                            if (checked) _selected.remove(c.id);
-                            else         _selected.add(c.id);
-                          }),
-                          activeColor: accent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(5)),
-                          side: BorderSide(
-                            color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                            width: 1.5,
-                          ),
-                        ),
-                      ]),
-                    ),
-                  );
-                },
-              ),
-      ),
-
-      // Floating import bar
-      if (someSelected)
-        Container(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, navPad + 12),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-            border: Border(top: BorderSide(color: borderColor)),
-          ),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              icon: const Icon(Icons.download_rounded, size: 17),
-              label: Text(
-                'Importar ${_selected.length} contato${_selected.length != 1 ? "s" : ""}',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-              ),
-              onPressed: _import,
-            ),
-          ),
-        ),
-    ]);
+        ]);
+    }
   }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+String _initials(String name) {
+  if (name.isEmpty) return '?';
+  return name.trim().split(RegExp(r'\s+')).take(2)
+      .map((w) => w[0].toUpperCase()).join();
+}
+
+String _fmt(int v) {
+  if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
+  if (v >= 1000)    return '${(v / 1000).toStringAsFixed(v >= 10000 ? 0 : 1)}k';
+  return v.toString();
 }
 
 const _kDevColors = [
