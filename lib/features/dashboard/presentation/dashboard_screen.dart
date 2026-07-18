@@ -174,7 +174,7 @@ class _DashboardAppBar extends StatelessWidget {
           children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(
-                'Bom dia, Rafael',
+                'Bom dia 👋',
                 style: GoogleFonts.poppins(
                   fontSize: 13, color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
                 ),
