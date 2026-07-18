@@ -5,11 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../core/database/app_database.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../campaigns/providers/campaigns_providers.dart';
 import '../../contacts/providers/contacts_providers.dart';
 import '../../providers/providers/providers_providers.dart';
-import '../../../core/database/app_database.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});

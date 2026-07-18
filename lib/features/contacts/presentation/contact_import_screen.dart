@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../data/contact_repository.dart';
 import '../data/vcf_parser.dart';
 import '../providers/contacts_providers.dart';
 
