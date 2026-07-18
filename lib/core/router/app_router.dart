@@ -11,14 +11,22 @@ import '../../features/providers/presentation/provider_form_screen.dart';
 import '../../features/providers/presentation/providers_screen.dart';
 import '../../features/reports/presentation/reports_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/splash/splash_screen.dart';
 import '../../features/templates/presentation/template_form_screen.dart';
 import '../../features/templates/presentation/templates_screen.dart';
 import '../shell/main_shell.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/dashboard',
+    initialLocation: '/',
     routes: [
+      // ── Splash (fora do shell — sem nav bar) ──────────────────────────
+      GoRoute(
+        path: '/',
+        name: 'splash',
+        builder: (_, __) => const SplashScreen(),
+      ),
+
       ShellRoute(
         builder: (context, state, child) => MainShell(child: child),
         routes: [

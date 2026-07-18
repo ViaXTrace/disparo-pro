@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../campaigns/providers/campaigns_providers.dart';
 import '../../contacts/providers/contacts_providers.dart';
+import '../../providers/providers/providers_providers.dart';
 import '../../../core/database/app_database.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -17,6 +18,7 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final statsAsync      = ref.watch(dashboardStatsProvider);
     final recentCampaigns = ref.watch(campaignsStreamProvider(null));
+    final defaultProvider = ref.watch(defaultProviderProvider);
 
     return Scaffold(
       body: RefreshIndicator(
@@ -138,7 +140,10 @@ class DashboardScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: _ProviderCard(onTap: () => context.go('/providers')),
+                child: _ProviderCard(
+                  providerAsync: defaultProvider,
+                  onTap: () => context.go('/providers'),
+                ),
               ),
             ),
 
@@ -662,16 +667,131 @@ class _CampaignRow extends StatelessWidget {
 // ─── Provider card ────────────────────────────────────────────────────────────
 
 class _ProviderCard extends StatelessWidget {
+  final AsyncValue<ProviderConfig?> providerAsync;
   final VoidCallback onTap;
-  const _ProviderCard({required this.onTap});
+  const _ProviderCard({required this.providerAsync, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = Theme.of(context).colorScheme.primary;
-    final green = isDark ? AppColors.greenDark : AppColors.greenLight;
-    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final accent  = Theme.of(context).colorScheme.primary;
+    final green   = isDark ? AppColors.greenDark  : AppColors.greenLight;
+    final muted   = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+    final border  = isDark ? AppColors.borderDark : AppColors.borderLight;
 
+    return providerAsync.when(
+      loading: () => _shell(
+        isDark: isDark,
+        accent: accent,
+        border: border,
+        child: Row(children: [
+          _icon(accent),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(width: 90, height: 12, decoration: BoxDecoration(
+              color: muted.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(4),
+            )),
+            const SizedBox(height: 6),
+            Container(width: 60, height: 10, decoration: BoxDecoration(
+              color: muted.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(4),
+            )),
+          ])),
+        ]),
+      ),
+
+      error: (_, __) => const SizedBox.shrink(),
+
+      data: (provider) {
+        // ── Nenhum provedor configurado ───────────────────────────
+        if (provider == null) {
+          return _shell(
+            isDark: isDark,
+            accent: accent,
+            border: border,
+            child: Row(children: [
+              Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: muted.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: muted.withOpacity(0.20)),
+                ),
+                child: Icon(Icons.cell_tower_rounded, size: 20, color: muted),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Nenhum provedor', style: GoogleFonts.poppins(
+                  fontSize: 14, fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.textDark : AppColors.textLight,
+                )),
+                const SizedBox(height: 1),
+                Text('Configure um provedor para disparar', style: GoogleFonts.poppins(
+                  fontSize: 11, fontWeight: FontWeight.w500, color: muted,
+                )),
+              ])),
+              OutlinedButton(
+                onPressed: onTap,
+                style: _btnStyle(border, isDark),
+                child: const Text('Configurar'),
+              ),
+            ]),
+          );
+        }
+
+        // ── Provedor padrão ───────────────────────────────────────
+        final statusColor = provider.isActive ? green : muted;
+        final statusLabel = provider.isActive
+            ? (provider.isDefault ? 'Ativo · Padrão' : 'Ativo')
+            : 'Inativo';
+
+        return _shell(
+          isDark: isDark,
+          accent: accent,
+          border: border,
+          child: Row(children: [
+            _icon(accent),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                provider.name,
+                style: GoogleFonts.poppins(
+                  fontSize: 14, fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.textDark : AppColors.textLight,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Row(children: [
+                Container(
+                  width: 5, height: 5,
+                  decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 5),
+                Text(statusLabel, style: GoogleFonts.poppins(
+                  fontSize: 11, fontWeight: FontWeight.w500, color: statusColor,
+                )),
+              ]),
+            ])),
+            OutlinedButton(
+              onPressed: onTap,
+              style: _btnStyle(border, isDark),
+              child: const Text('Gerenciar'),
+            ),
+          ]),
+        );
+      },
+    );
+  }
+
+  Widget _shell({
+    required bool isDark,
+    required Color accent,
+    required Color border,
+    required Widget child,
+  }) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
@@ -679,42 +799,30 @@ class _ProviderCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: border),
       ),
-      child: Row(children: [
-        Container(
-          width: 38, height: 38,
-          decoration: BoxDecoration(
-            color: accent.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: accent.withOpacity(0.20)),
-          ),
-          child: Icon(Icons.bolt_rounded, size: 20, color: accent),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Zenvia', style: GoogleFonts.poppins(
-            fontSize: 14, fontWeight: FontWeight.w700,
-            color: isDark ? AppColors.textDark : AppColors.textLight,
-          )),
-          const SizedBox(height: 1),
-          Text('Conectado', style: GoogleFonts.poppins(
-            fontSize: 11, fontWeight: FontWeight.w500, color: green,
-          )),
-        ])),
-        OutlinedButton(
-          onPressed: onTap,
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            side: BorderSide(color: border),
-            foregroundColor: isDark ? AppColors.textSubDark : AppColors.textSubLight,
-            textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          child: const Text('Configurar'),
-        ),
-      ]),
+      child: child,
     );
   }
+
+  Widget _icon(Color accent) => Container(
+    width: 38, height: 38,
+    decoration: BoxDecoration(
+      color: accent.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: accent.withOpacity(0.20)),
+    ),
+    child: Icon(Icons.bolt_rounded, size: 20, color: accent),
+  );
+
+  ButtonStyle _btnStyle(Color border, bool isDark) =>
+      OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        side: BorderSide(color: border),
+        foregroundColor: isDark ? AppColors.textSubDark : AppColors.textSubLight,
+        textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      );
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
