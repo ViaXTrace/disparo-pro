@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- Dark background gradient: deep navy to near-black -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#12132a"/>
+      <stop offset="100%" stop-color="#07080d"/>
+    </linearGradient>
+
+    <!-- Icon gradient: light indigo -> deep indigo -->
+    <linearGradient id="iconGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c7d2fe"/>
+      <stop offset="50%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+
+    <!-- Glow blur filter -->
+    <filter id="outerGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="18" result="blur"/>
+      <feFlood flood-color="#4F46E5" flood-opacity="0.55" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="glow"/>
+      <feComposite in="SourceGraphic" in2="glow" operator="over"/>
+    </filter>
+
+    <!-- Softer ambient glow for dots -->
+    <filter id="dotGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10" result="blur"/>
+      <feFlood flood-color="#818cf8" flood-opacity="0.6" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="glow"/>
+      <feComposite in="SourceGraphic" in2="glow" operator="over"/>
+    </filter>
+
+    <!-- Radial glow on background -->
+    <radialGradient id="bgGlow" cx="55%" cy="47%" r="42%">
+      <stop offset="0%" stop-color="#3730a3" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#3730a3" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ── Background ───────────────────────────────────────────── -->
+  <rect width="1024" height="1024" rx="226" fill="url(#bgGrad)"/>
+  <!-- Soft indigo ambient light -->
+  <rect width="1024" height="1024" rx="226" fill="url(#bgGlow)"/>
+
+  <!-- ── Paper plane (send metaphor) ─────────────────────────── -->
+  <!--
+    Classic triangular paper plane:
+      Top section = two wings extending from the nose
+      Bottom section = body fold (slightly darker)
+    Rotated -35° to point upper-right (universal "send" direction)
+    Centered at (512, 495) with vertical bias toward center
+  -->
+  <g transform="translate(512, 495) rotate(-35)" filter="url(#outerGlow)">
+    <!-- Upper wing panel: nose → right wing tip → fold crease → left wing tip -->
+    <polygon
+      points="0,-248  272,118  0,34  -272,118"
+      fill="url(#iconGrad)"
+    />
+    <!-- Lower body panel: fold crease → left tip → tail → right tip -->
+    <polygon
+      points="0,34  -272,118  0,255  272,118"
+      fill="#312e91"
+      opacity="0.82"
+    />
+    <!-- Center spine highlight (very subtle) -->
+    <line x1="0" y1="-248" x2="0" y2="255"
+          stroke="rgba(255,255,255,0.09)" stroke-width="3"/>
+  </g>
+
+  <!-- ── Recipient dots (mass-send metaphor) ──────────────────── -->
+  <!--
+    Three dots in a trailing arc below-left of the plane,
+    fading out to suggest broadcasting to many recipients
+  -->
+  <circle cx="268" cy="748" r="30" fill="url(#iconGrad)" opacity="0.52" filter="url(#dotGlow)"/>
+  <circle cx="368" cy="792" r="23" fill="url(#iconGrad)" opacity="0.35" filter="url(#dotGlow)"/>
+  <circle cx="456" cy="828" r="17" fill="url(#iconGrad)" opacity="0.20" filter="url(#dotGlow)"/>
+</svg>

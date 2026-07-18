@@ -81,8 +81,9 @@ class _CsvImportTabState extends ConsumerState<_CsvImportTab> {
 
   @override
   Widget build(BuildContext context) {
+    final navBottom = MediaQuery.of(context).padding.bottom;
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, navBottom + 16),
       children: [
         _Step(
           number: 1,
@@ -239,8 +240,9 @@ class _VcfImportTabState extends ConsumerState<_VcfImportTab> {
 
   @override
   Widget build(BuildContext context) {
+    final navBottom = MediaQuery.of(context).padding.bottom;
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, navBottom + 16),
       children: [
         // Info banner
         Card(

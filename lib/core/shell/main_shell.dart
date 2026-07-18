@@ -13,26 +13,46 @@ class MainShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final index = _selectedIndex(context);
-    final bottom = MediaQuery.of(context).padding.bottom;
+    final mq = MediaQuery.of(context);
+    final bottom = mq.padding.bottom;
+    final keyboardOpen = mq.viewInsets.bottom > 0;
 
-    // Only inject nav-bar padding when the keyboard is NOT covering the screen.
-    // If we inject 80 px of fake bottom-padding while the keyboard is open,
-    // the inner Scaffold's resizeToAvoidBottomInset calculation double-counts
-    // the space and renders a black block below the content.
-    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    // ──────────────────────────────────────────────────────────────────
+    // KEYBOARD FIX
+    //
+    // When the keyboard is open we MUST:
+    //   1. Remove the bottom nav bar completely (bottomNavigationBar = null)
+    //   2. NOT use extendBody (no body extension behind a non-existent nav)
+    //   3. NOT inject the extra 80 px padding (it would push a black gap below
+    //      the keyboard since the inner Scaffold's resizeToAvoidBottomInset
+    //      has already shrunk the body)
+    //
+    // When the keyboard is closed we DO:
+    //   1. Show the floating pill nav
+    //   2. Use extendBody so content can visually bleed behind the nav pill
+    //   3. Inject padding.bottom = 80 + safeArea so inner ListViews can read
+    //      it and add the correct bottom inset via MediaQuery.of(context).padding.bottom
+    // ──────────────────────────────────────────────────────────────────
+
+    if (keyboardOpen) {
+      // Full-screen body, no nav bar, no padding injection — inner Scaffold
+      // handles the keyboard resize cleanly with zero interference.
+      return Scaffold(
+        extendBody: false,
+        body: child,
+      );
+    }
 
     return Scaffold(
-      // Give the body bottom padding so content never hides behind the nav
+      extendBody: true,
       body: MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          padding: MediaQuery.of(context).padding.copyWith(
-            bottom: keyboardOpen ? bottom : 80 + bottom,
+        data: mq.copyWith(
+          padding: mq.padding.copyWith(
+            bottom: 80 + bottom,
           ),
         ),
         child: child,
       ),
-      // No bottomNavigationBar — we draw our own floating pill
-      extendBody: true,
       bottomNavigationBar: Padding(
         padding: EdgeInsets.fromLTRB(16, 0, 16, 20 + bottom),
         child: _FloatingNav(

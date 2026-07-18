@@ -38,7 +38,8 @@ class CampaignDetailScreen extends ConsumerWidget {
             ],
           ),
           body: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(
+                16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
             children: [
               // Status chip
               Center(
@@ -151,7 +152,6 @@ class CampaignDetailScreen extends ConsumerWidget {
                 ]),
               )),
 
-              const SizedBox(height: 80),
             ],
           ),
           bottomNavigationBar: _BottomActions(campaign: campaign, repo: repo),
