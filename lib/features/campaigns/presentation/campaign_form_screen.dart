@@ -34,13 +34,6 @@ class _CampaignFormScreenState extends ConsumerState<CampaignFormScreen> {
 
   bool get isEdit => widget.id != null;
 
-  // Channel metadata
-  static const _channels = [
-    ('sms', 'SMS', Color(0xFF10B981)),
-    ('rcs', 'RCS', Color(0xFF818CF8)),
-    ('whatsapp', 'WhatsApp', Color(0xFF25D366)),
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -321,9 +314,6 @@ class _CampaignFormScreenState extends ConsumerState<CampaignFormScreen> {
       ),
     ),
   );
-
-  String _fmtDt(DateTime dt) =>
-      '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}  ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 
   Future<void> _pickSchedule() async {
     final date = await showDatePicker(
